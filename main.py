@@ -5,17 +5,20 @@
 🤖 BOT MINI AURA - Bot Multi-propósito para WhatsApp
 Versión: 3.0.0
 Owner: +50578391933
+Sistema: Selenium + WhatsApp Web
 Total de comandos: 101
 """
 
 import os
 import sys
 import json
+import time
+import random
 import logging
+import threading
 import traceback
+from datetime import datetime, timedelta
 from pathlib import Path
-from datetime import datetime
-from functools import wraps
 
 # Configurar logging
 logging.basicConfig(
@@ -28,136 +31,174 @@ logging.basicConfig(
 )
 logger = logging.getLogger('MINI-AURA')
 
-# Agregar directorio raíz al path
-sys.path.insert(0, str(Path(__file__).parent))
-
+# Importar Selenium
 try:
-    from flask import Flask, request, jsonify
-    from twilio.twiml.messaging_response import MessagingResponse
-    from config.settings import *
-    from src.commands.menu import *
-    from src.commands.economia import *
-    from src.commands.juegos import *
-    from src.commands.utilidades import *
-    from src.commands.descargas import *
-    from src.commands.admin import *
-    from src.commands.grupo import *
-    from src.commands.owner import *
-    from src.commands.vinculacion import *
-    from src.commands.diversion import *
-    from src.commands.exclusivos import *
-    from src.commands.premium import *
-    from src.lib.database import Database
-    from src.lib.functions import *
-    from src.lib.vincular import SistemaVinculacion
-    from src.lib.decorators import *
-except ImportError as e:
-    logger.error(f"Error importando módulos: {e}")
-    logger.error("Ejecuta: pip install -r requirements.txt")
+    from selenium import webdriver
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.common.keys import Keys
+    from selenium.webdriver.chrome.service import Service
+    from selenium.webdriver.chrome.options import Options
+    from selenium.webdriver.support.ui import WebDriverWait
+    from selenium.webdriver.support import expected_conditions as EC
+    from selenium.common.exceptions import *
+except ImportError:
+    logger.error("Selenium no instalado. Ejecuta: pip install selenium")
     sys.exit(1)
 
-# Inicializar Flask
-app = Flask(__name__)
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'mini-aura-secret-2024')
+# Importar configuraciones
+sys.path.insert(0, str(Path(__file__).parent))
+from config.settings import *
+from src.lib.database import Database
+from src.lib.vincular import SistemaVinculacion
 
-# Inicializar base de datos
-db = Database()
-db.initialize()
+# ==================== CLASE PRINCIPAL DEL BOT ====================
 
-# Inicializar sistema de vinculación
-sistema_vinculacion = SistemaVinculacion()
-
-# ==================== MANEJO DE ERRORES ====================
-
-@app.errorhandler(404)
-def not_found(e):
-    return jsonify({'error': 'Ruta no encontrada', 'status': 404}), 404
-
-@app.errorhandler(500)
-def server_error(e):
-    logger.error(f"Error 500: {e}")
-    return jsonify({'error': 'Error interno del servidor', 'status': 500}), 500
-
-@app.errorhandler(Exception)
-def handle_exception(e):
-    logger.error(f"Error no manejado: {e}")
-    logger.error(traceback.format_exc())
-    return jsonify({'error': 'Error inesperado', 'status': 500}), 500
-
-# ==================== WEBHOOK PRINCIPAL ====================
-
-@app.route('/webhook', methods=['POST'])
-def webhook():
-    """Endpoint principal para recibir mensajes de WhatsApp"""
-    try:
-        # Obtener datos del mensaje
-        mensaje = request.values.get('Body', '').strip()
-        remitente = request.values.get('From', '').split(':')[1] if ':' in request.values.get('From', '') else request.values.get('From', '')
-        nombre_remitente = request.values.get('ProfileName', 'Usuario')
-        grupo_id = request.values.get('GroupId', None)
+class BotMiniAura:
+    def __init__(self):
+        self.driver = None
+        self.db = Database()
+        self.db.initialize()
+        self.sistema_vinculacion = SistemaVinculacion()
+        self.vinculados = set()
+        self.codigos_pendientes = {}
+        self.mensajes_procesados = set()
+        self.ultimo_mensaje = {}
         
-        # Validar mensaje vacío
-        if not mensaje:
-            return str(MessagingResponse())
+    def iniciar_driver(self):
+        """Inicializar el driver de Chrome"""
+        try:
+            logger.info("🚀 Iniciando Chrome...")
+            
+            chrome_options = Options()
+            chrome_options.add_argument("--no-sandbox")
+            chrome_options.add_argument("--disable-dev-shm-usage")
+            chrome_options.add_argument("--disable-gpu")
+            chrome_options.add_argument("--user-data-dir=src/sessions/chrome")
+            
+            # Si quieres ver el navegador, comenta esta línea
+            # chrome_options.add_argument("--headless")
+            
+            self.driver = webdriver.Chrome(options=chrome_options)
+            self.driver.get("https://web.whatsapp.com")
+            
+            logger.info("📱 Abriendo WhatsApp Web...")
+            print("\n" + "=" * 60)
+            print("📱 *ESCANEA EL CÓDIGO QR CON TU WHATSAPP*")
+            print("=" * 60 + "\n")
+            
+            # Esperar a que el usuario escanee el QR
+            self.esperar_qr()
+            
+            logger.info("✅ ¡WhatsApp Web conectado!")
+            
+        except Exception as e:
+            logger.error(f"Error iniciando driver: {e}")
+            sys.exit(1)
+    
+    def esperar_qr(self, timeout=120):
+        """Esperar a que el usuario escanee el QR"""
+        try:
+            WebDriverWait(self.driver, timeout).until(
+                EC.presence_of_element_located((By.XPATH, '//div[@contenteditable="true"]'))
+            )
+            logger.info("✅ QR escaneado correctamente")
+        except TimeoutException:
+            logger.error("⏰ Tiempo de espera agotado para escanear QR")
+            self.driver.quit()
+            sys.exit(1)
+    
+    def esperar_elemento(self, xpath, timeout=10):
+        """Esperar a que aparezca un elemento"""
+        try:
+            return WebDriverWait(self.driver, timeout).until(
+                EC.presence_of_element_located((By.XPATH, xpath))
+            )
+        except:
+            return None
+    
+    def obtener_mensajes(self):
+        """Obtener mensajes nuevos de WhatsApp"""
+        mensajes = []
+        try:
+            # Buscar mensajes no leídos
+            chats_no_leidos = self.driver.find_elements(By.XPATH, 
+                '//div[contains(@class, "message-in")]//span[contains(@class, "selectable-text")]')
+            
+            for chat in chats_no_leidos[-5:]:  # Últimos 5 mensajes
+                try:
+                    texto = chat.text.strip()
+                    if texto and texto not in self.mensajes_procesados:
+                        self.mensajes_procesados.add(texto)
+                        mensajes.append(texto)
+                except:
+                    continue
+                    
+        except Exception as e:
+            logger.error(f"Error obteniendo mensajes: {e}")
         
-        # Crear respuesta
-        respuesta = MessagingResponse()
-        msg_respuesta = respuesta.message()
-        
-        # Procesar comando
-        if mensaje.startswith(PREFIX):
-            comando = mensaje[len(PREFIX):].split(' ')[0].lower()
-            args = mensaje.split(' ')[1:] if ' ' in mensaje else []
+        return mensajes
+    
+    def enviar_mensaje(self, numero, mensaje):
+        """Enviar mensaje a un número específico"""
+        try:
+            # Formatear número
+            numero = numero.replace("+", "").replace(" ", "")
             
-            logger.info(f"Comando recibido: {comando} de {remitente}")
+            # Abrir chat con el número
+            self.driver.get(f"https://web.whatsapp.com/send?phone={numero}&text={mensaje}")
             
-            # ============ COMANDOS DE VINCULACIÓN ============
-            if comando in ['vincular', 'link', 'conectar']:
-                msg_respuesta.body(iniciar_vinculacion(remitente, args))
-            elif comando in ['codigo', 'code']:
-                msg_respuesta.body(solicitar_codigo(remitente, args))
-            elif comando in ['verificar', 'verify']:
-                msg_respuesta.body(verificar_codigo(remitente, args))
-            elif comando in ['qr', 'escanear']:
-                msg_respuesta.body(solicitar_qr(remitente, args))
-            elif comando in ['estado', 'status']:
-                msg_respuesta.body(verificar_estado(remitente, args))
-            elif comando in ['desvincular', 'unlink']:
-                msg_respuesta.body(desvincular(remitente, args))
+            # Esperar a que cargue
+            time.sleep(3)
             
-            # ============ COMANDOS DE OWNER ============
-            elif comando in ['owner', 'dueño', 'creador']:
-                msg_respuesta.body(info_owner(remitente))
-            elif comando in ['broadcast', 'anuncio']:
-                msg_respuesta.body(broadcast(remitente, args))
-            elif comando in ['addowner', 'agregarowner']:
-                msg_respuesta.body(agregar_owner(remitente, args))
-            elif comando in ['delowner', 'quitarowner']:
-                msg_respuesta.body(quitar_owner(remitente, args))
-            elif comando in ['listowners', 'owners']:
-                msg_respuesta.body(listar_owners(remitente))
-            elif comando in ['stats', 'estadisticas']:
-                msg_respuesta.body(estadisticas_bot(remitente))
-            elif comando in ['reiniciar', 'restart']:
-                msg_respuesta.body(reiniciar_bot(remitente))
-            elif comando in ['apagar', 'shutdown']:
-                msg_respuesta.body(apagar_bot(remitente))
-            elif comando in ['usuarios', 'users']:
-                msg_respuesta.body(listar_usuarios(remitente))
-            elif comando in ['dar', 'give']:
-                msg_respuesta.body(dar_monedas(remitente, args))
-            elif comando in ['quitar', 'remove']:
-                msg_respuesta.body(quitar_monedas(remitente, args))
-            elif comando in ['reset', 'reiniciaruser']:
-                msg_respuesta.body(reset_usuario(remitente, args))
-            elif comando in ['banuser', 'banearuser']:
-                msg_respuesta.body(banear_usuario_owner(remitente, args))
-            elif comando in ['unbanuser', 'desbanear']:
-                msg_respuesta.body(desbanear_usuario_owner(remitente, args))
+            # Encontrar botón de enviar y hacer click
+            boton_enviar = self.esperar_elemento('//button[@data-tab="11"]', 10)
+            if boton_enviar:
+                boton_enviar.click()
+                logger.info(f"✅ Mensaje enviado a {numero}")
+                return True
+            else:
+                # Intentar con Enter
+                caja_mensaje = self.esperar_elemento('//div[@contenteditable="true"]', 10)
+                if caja_mensaje:
+                    caja_mensaje.send_keys(Keys.ENTER)
+                    logger.info(f"✅ Mensaje enviado a {numero}")
+                    return True
             
-            # ============ VERIFICAR VINCULACIÓN ============
-            elif not sistema_vinculacion.esta_vinculado(remitente) and remitente != OWNER_NUMBER:
-                msg_respuesta.body(f"""
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error enviando mensaje: {e}")
+            return False
+    
+    def responder_mensaje(self, texto, remitente="desconocido"):
+        """Procesar y responder mensajes"""
+        try:
+            # Verificar si es comando
+            if texto.startswith(PREFIX):
+                comando = texto[len(PREFIX):].split(' ')[0].lower()
+                args = texto.split(' ')[1:] if ' ' in texto else []
+                
+                logger.info(f"Comando recibido: {comando} de {remitente}")
+                
+                # ============ COMANDOS DE VINCULACIÓN ============
+                if comando in ['vincular', 'link', 'conectar']:
+                    return self.comando_vincular(remitente, args)
+                
+                elif comando in ['codigo', 'code']:
+                    return self.comando_codigo(remitente)
+                
+                elif comando in ['verificar', 'verify']:
+                    return self.comando_verificar(remitente, args)
+                
+                elif comando in ['estado', 'status']:
+                    return self.comando_estado(remitente)
+                
+                elif comando in ['desvincular', 'unlink']:
+                    return self.comando_desvincular(remitente)
+                
+                # ============ VERIFICAR VINCULACIÓN ============
+                if remitente not in self.vinculados and remitente != OWNER_NUMBER:
+                    return f"""
 ╭━━━━━━━━━━━━━━━━━━━━━━━━━━━╮
 ┃   ⚠️ *VINCULACIÓN REQUERIDA* ⚠️   ┃
 ╰━━━━━━━━━━━━━━━━━━━━━━━━━━━╯
@@ -168,330 +209,500 @@ def webhook():
 Escribe: {PREFIX}vincular [tu_número]
 
 📌 *Ejemplo:* {PREFIX}vincular 50578391933
-                """)
+                    """
+                
+                # ============ COMANDOS GENERALES ============
+                if comando in ['menu', 'ayuda', 'help', 'start']:
+                    from src.commands.menu import mostrar_menu_principal
+                    return mostrar_menu_principal()
+                
+                elif comando in ['ping', 'test', 'latencia']:
+                    from src.commands.utilidades import verificar_ping
+                    return verificar_ping()
+                
+                elif comando in ['info', 'bot', 'about']:
+                    from src.commands.utilidades import info_bot
+                    return info_bot()
+                
+                # ============ COMANDOS DE ECONOMÍA ============
+                elif comando in ['monedas', 'balance', 'bal', 'wallet', 'dinero']:
+                    from src.commands.economia import ver_balance
+                    return ver_balance(remitente)
+                
+                elif comando in ['trabajar', 'work', 'minar', 'chambear']:
+                    from src.commands.economia import trabajar
+                    return trabajar(remitente)
+                
+                elif comando in ['top', 'ranking', 'leaderboard', 'top10']:
+                    from src.commands.economia import ver_ranking
+                    return ver_ranking()
+                
+                elif comando in ['robar', 'steal', 'hurtar']:
+                    from src.commands.economia import robar
+                    return robar(remitente, args)
+                
+                elif comando in ['depositar', 'dep', 'banco']:
+                    from src.commands.economia import depositar
+                    return depositar(remitente, args)
+                
+                elif comando in ['retirar', 'ret', 'sacar']:
+                    from src.commands.economia import retirar
+                    return retirar(remitente, args)
+                
+                elif comando in ['regalar', 'enviar', 'transferir']:
+                    from src.commands.economia import regalar_monedas
+                    return regalar_monedas(remitente, args)
+                
+                # ============ COMANDOS DE JUEGOS ============
+                elif comando in ['dado', 'dice', 'roll', 'tirar']:
+                    from src.commands.juegos import tirar_dado
+                    return tirar_dado(remitente)
+                
+                elif comando in ['moneda', 'coinflip', 'cara', 'volado']:
+                    from src.commands.juegos import lanzar_moneda
+                    return lanzar_moneda(remitente)
+                
+                elif comando in ['ppt', 'piedra', 'rps', 'juego']:
+                    from src.commands.juegos import piedra_papel_tijera
+                    return piedra_papel_tijera(remitente, args)
+                
+                elif comando in ['ahorcado', 'ahorcar']:
+                    from src.commands.juegos import ahorcado
+                    return ahorcado(remitente)
+                
+                elif comando in ['trivia', 'pregunta', 'quiz']:
+                    from src.commands.juegos import trivia
+                    return trivia(remitente)
+                
+                elif comando in ['ruleta', 'rusa']:
+                    from src.commands.juegos import ruleta_rusa
+                    return ruleta_rusa(remitente)
+                
+                elif comando in ['loteria', 'loto']:
+                    from src.commands.juegos import loteria
+                    return loteria(remitente)
+                
+                # ============ COMANDOS DE UTILIDADES ============
+                elif comando in ['clima', 'weather', 'tiempo']:
+                    from src.commands.utilidades import obtener_clima
+                    return obtener_clima(args)
+                
+                elif comando in ['calc', 'calcular', 'math', 'matematica']:
+                    from src.commands.utilidades import calculadora
+                    return calculadora(args)
+                
+                elif comando in ['password', 'contraseña', 'clave', 'pass']:
+                    from src.commands.utilidades import generar_password
+                    return generar_password(args)
+                
+                elif comando in ['fecha', 'date', 'hoy']:
+                    from src.commands.utilidades import ver_fecha
+                    return ver_fecha()
+                
+                elif comando in ['hora', 'time', 'reloj']:
+                    from src.commands.utilidades import ver_hora
+                    return ver_hora()
+                
+                elif comando in ['binario', 'bin']:
+                    from src.commands.utilidades import texto_binario
+                    return texto_binario(args)
+                
+                elif comando in ['hex', 'hexadecimal']:
+                    from src.commands.utilidades import texto_hex
+                    return texto_hex(args)
+                
+                elif comando in ['base64', 'b64']:
+                    from src.commands.utilidades import texto_base64
+                    return texto_base64(args)
+                
+                elif comando in ['md5', 'hash']:
+                    from src.commands.utilidades import texto_md5
+                    return texto_md5(args)
+                
+                elif comando in ['reverso', 'reverse', 'invertir']:
+                    from src.commands.utilidades import texto_reverso
+                    return texto_reverso(args)
+                
+                elif comando in ['mayus', 'uppercase']:
+                    from src.commands.utilidades import texto_mayus
+                    return texto_mayus(args)
+                
+                elif comando in ['minus', 'lowercase']:
+                    from src.commands.utilidades import texto_minus
+                    return texto_minus(args)
+                
+                elif comando in ['contar', 'count']:
+                    from src.commands.utilidades import contar_caracteres
+                    return contar_caracteres(args)
+                
+                # ============ COMANDOS DE DIVERSIÓN ============
+                elif comando in ['dato', 'fact', 'curiosidad']:
+                    from src.commands.diversion import dato_curioso
+                    return dato_curioso()
+                
+                elif comando in ['chiste', 'joke', 'broma']:
+                    from src.commands.diversion import chiste
+                    return chiste()
+                
+                elif comando in ['frase', 'quote', 'motivacion']:
+                    from src.commands.diversion import frase_motivacional
+                    return frase_motivacional()
+                
+                elif comando in ['piropo', 'halago']:
+                    from src.commands.diversion import piropo
+                    return piropo()
+                
+                elif comando in ['8ball', 'bola', 'pregunta8']:
+                    from src.commands.diversion import bola_ocho
+                    return bola_ocho(args)
+                
+                elif comando in ['amor', 'love', 'ship']:
+                    from src.commands.diversion import calcular_amor
+                    return calcular_amor(args)
+                
+                elif comando in ['edad', 'age', 'años']:
+                    from src.commands.diversion import calcular_edad
+                    return calcular_edad(args)
+                
+                elif comando in ['nombre', 'randomname']:
+                    from src.commands.diversion import generar_nombre
+                    return generar_nombre()
+                
+                elif comando in ['color', 'randomcolor']:
+                    from src.commands.diversion import color_aleatorio
+                    return color_aleatorio()
+                
+                elif comando in ['emoji', 'randomemoji']:
+                    from src.commands.diversion import emoji_aleatorio
+                    return emoji_aleatorio()
+                
+                # ============ COMANDOS EXCLUSIVOS ============
+                elif comando in ['futuro', 'predecir', 'destino']:
+                    from src.commands.exclusivos import predecir_futuro
+                    return predecir_futuro(remitente, args)
+                
+                elif comando in ['match', 'compatibilidad']:
+                    from src.commands.exclusivos import compatibilidad_nombres
+                    return compatibilidad_nombres(args)
+                
+                elif comando in ['test', 'personalidad']:
+                    from src.commands.exclusivos import test_personalidad
+                    return test_personalidad(remitente, args)
+                
+                elif comando in ['correo', 'email', 'mail']:
+                    from src.commands.exclusivos import generar_correo
+                    return generar_correo(args)
+                
+                elif comando in ['iguser', 'usuarioig']:
+                    from src.commands.exclusivos import generar_usuario_instagram
+                    return generar_usuario_instagram(args)
+                
+                elif comando in ['bio', 'biografia']:
+                    from src.commands.exclusivos import generar_bio
+                    return generar_bio(args)
+                
+                elif comando in ['horoscopo', 'signo']:
+                    from src.commands.exclusivos import horoscopo_diario
+                    return horoscopo_diario(args)
+                
+                elif comando in ['imc', 'masacorporal']:
+                    from src.commands.exclusivos import calcular_imc
+                    return calcular_imc(args)
+                
+                elif comando in ['regla3', 'reglatres']:
+                    from src.commands.exclusivos import calcular_regla_tres
+                    return calcular_regla_tres(args)
+                
+                elif comando in ['descuento', 'oferta']:
+                    from src.commands.exclusivos import calcular_descuento
+                    return calcular_descuento(args)
+                
+                elif comando in ['cuenta', 'countdown']:
+                    from src.commands.exclusivos import cuenta_regresiva
+                    return cuenta_regresiva(args)
+                
+                elif comando in ['edadexacta', 'exacta']:
+                    from src.commands.exclusivos import edad_exacta
+                    return edad_exacta(args)
+                
+                elif comando in ['leet', '1337']:
+                    from src.commands.exclusivos import texto_leet
+                    return texto_leet(args)
+                
+                elif comando in ['morse', 'codigomorse']:
+                    from src.commands.exclusivos import texto_morse
+                    return texto_morse(args)
+                
+                elif comando in ['textemoji', 'emoji_texto']:
+                    from src.commands.exclusivos import texto_emoji
+                    return texto_emoji(args)
+                
+                # ============ COMANDOS PREMIUM ============
+                elif comando in ['analizar', 'texto']:
+                    from src.commands.premium import analizar_texto
+                    return analizar_texto(args)
+                
+                elif comando in ['numero', 'num']:
+                    from src.commands.premium import analizar_numero
+                    return analizar_numero(args)
+                
+                elif comando in ['temp', 'temperatura']:
+                    from src.commands.premium import convertir_temperatura
+                    return convertir_temperatura(args)
+                
+                elif comando in ['distancia', 'longitud']:
+                    from src.commands.premium import convertir_distancia
+                    return convertir_distancia(args)
+                
+                elif comando in ['historia', 'cuento']:
+                    from src.commands.premium import generar_historia
+                    return generar_historia(args)
+                
+                elif comando in ['poema', 'poesia']:
+                    from src.commands.premium import generar_poema
+                    return generar_poema(args)
+                
+                elif comando in ['consejo', 'tip']:
+                    from src.commands.premium import generar_consejo
+                    return generar_consejo(args)
+          
+                elif comando in ['palabras', 'wordgame']:
+                    from src.commands.premium import juego_palabras
+                    return juego_palabras(args)
+                
+                # ============ COMANDO DESCONOCIDO ============
+                else:
+                    return f"❌ *Comando no reconocido*\n\nEscribe *{PREFIX}menu* para ver todos los comandos."
             
-            # ============ COMANDOS GENERALES ============
-            elif comando in ['menu', 'ayuda', 'help', 'start']:
-                msg_respuesta.body(mostrar_menu_principal())
-            elif comando in ['s', 'sticker', 'stiker']:
-                msg_respuesta.body(crear_sticker(remitente, args))
-            elif comando in ['ping', 'test', 'latencia']:
-                msg_respuesta.body(verificar_ping())
-            elif comando in ['info', 'bot', 'about']:
-                msg_respuesta.body(info_bot())
-            elif comando in ['perfil', 'profile', 'miperfil']:
-                msg_respuesta.body(ver_perfil(remitente))
+            # Respuestas automáticas
+            return self.procesar_mensaje_normal(texto, remitente)
             
-            # ============ COMANDOS DE ECONOMÍA ============
-            elif comando in ['monedas', 'balance', 'bal', 'wallet', 'dinero']:
-                msg_respuesta.body(ver_balance(remitente))
-            elif comando in ['trabajar', 'work', 'minar', 'chambear']:
-                msg_respuesta.body(trabajar(remitente))
-            elif comando in ['top', 'ranking', 'leaderboard', 'top10']:
-                msg_respuesta.body(ver_ranking())
-            elif comando in ['robar', 'steal', 'hurtar']:
-                msg_respuesta.body(robar(remitente, args))
-            elif comando in ['depositar', 'dep', 'banco']:
-                msg_respuesta.body(depositar(remitente, args))
-            elif comando in ['retirar', 'ret', 'sacar']:
-                msg_respuesta.body(retirar(remitente, args))
-            elif comando in ['regalar', 'enviar', 'transferir']:
-                msg_respuesta.body(regalar_monedas(remitente, args))
+        except Exception as e:
+            logger.error(f"Error procesando mensaje: {e}")
+            logger.error(traceback.format_exc())
+            return "⚠️ *Error interno*\n\nOcurrió un error inesperado."
+    
+    # ==================== COMANDOS DE VINCULACIÓN ====================
+    
+    def comando_vincular(self, usuario, args):
+        """Comando para vincular número"""
+        try:
+            if usuario in self.vinculados:
+                return f"""
+╭━━━━━━━━━━━━━━━━━━━━━━━━━━━╮
+┃   ✅ *YA ESTÁS VINCULADO* ✅   ┃
+╰━━━━━━━━━━━━━━━━━━━━━━━━━━━╯
+
+📱 *Tu número:* {usuario}
+🔗 *Estado:* Vinculado
+
+Escribe {PREFIX}menu para comenzar
+                """
             
-            # ============ COMANDOS DE JUEGOS ============
-            elif comando in ['dado', 'dice', 'roll', 'tirar']:
-                msg_respuesta.body(tirar_dado(remitente))
-            elif comando in ['moneda', 'coinflip', 'cara', 'volado']:
-                msg_respuesta.body(lanzar_moneda(remitente))
-            elif comando in ['ppt', 'piedra', 'rps', 'juego']:
-                msg_respuesta.body(piedra_papel_tijera(remitente, args))
-            elif comando in ['ahorcado', 'ahorcar']:
-                msg_respuesta.body(ahorcado(remitente))
-            elif comando in ['trivia', 'pregunta', 'quiz']:
-                msg_respuesta.body(trivia(remitente))
-            elif comando in ['ruleta', 'rusa']:
-                msg_respuesta.body(ruleta_rusa(remitente))
-            elif comando in ['loteria', 'loto']:
-                msg_respuesta.body(loteria(remitente))
+            if not args:
+                return f"""
+╭━━━━━━━━━━━━━━━━━━━━━━━━━━━╮
+┃  🔗 *VINCULACIÓN DE BOT* 🔗  ┃
+╰━━━━━━━━━━━━━━━━━━━━━━━━━━━╯
+
+📱 *Para vincular tu número:*
+
+Escribe: {PREFIX}vincular [tu_número]
+Ejemplo: {PREFIX}vincular 50578391933
+
+Después escribe: {PREFIX}codigo
+Para recibir tu código de 8 dígitos
+                """
             
-            # ============ COMANDOS DE UTILIDADES ============
-            elif comando in ['clima', 'weather', 'tiempo']:
-                msg_respuesta.body(obtener_clima(args))
-            elif comando in ['calc', 'calcular', 'math', 'matematica']:
-                msg_respuesta.body(calculadora(args))
-            elif comando in ['traducir', 'translate', 'trad']:
-                msg_respuesta.body(traducir(args))
-            elif comando in ['qrcode', 'codigoqr']:
-                msg_respuesta.body(generar_qr(args))
-            elif comando in ['password', 'contraseña', 'clave', 'pass']:
-                msg_respuesta.body(generar_password(args))
-            elif comando in ['acortar', 'short', 'url']:
-                msg_respuesta.body(acortar_url(args))
-            elif comando in ['fecha', 'date', 'hoy']:
-                msg_respuesta.body(ver_fecha())
-            elif comando in ['hora', 'time', 'reloj']:
-                msg_respuesta.body(ver_hora())
-            elif comando in ['binario', 'bin']:
-                msg_respuesta.body(texto_binario(args))
-            elif comando in ['hex', 'hexadecimal']:
-                msg_respuesta.body(texto_hex(args))
-            elif comando in ['base64', 'b64']:
-                msg_respuesta.body(texto_base64(args))
-            elif comando in ['md5', 'hash']:
-                msg_respuesta.body(texto_md5(args))
-            elif comando in ['reverso', 'reverse', 'invertir']:
-                msg_respuesta.body(texto_reverso(args))
-            elif comando in ['mayus', 'uppercase']:
-                msg_respuesta.body(texto_mayus(args))
-            elif comando in ['minus', 'lowercase']:
-                msg_respuesta.body(texto_minus(args))
-            elif comando in ['contar', 'count']:
-                msg_respuesta.body(contar_caracteres(args))
+            numero = args[0]
             
-            # ============ COMANDOS DE DESCARGAS ============
-            elif comando in ['yt', 'youtube', 'video']:
-                msg_respuesta.body(descargar_youtube(remitente, args))
-            elif comando in ['mp3', 'audio', 'musica']:
-                msg_respuesta.body(descargar_youtube_mp3(remitente, args))
-            elif comando in ['tiktok', 'tk', 'tik']:
-                msg_respuesta.body(descargar_tiktok(remitente, args))
-            elif comando in ['ig', 'instagram', 'insta']:
-                msg_respuesta.body(descargar_instagram(remitente, args))
-            elif comando in ['fb', 'facebook']:
-                msg_respuesta.body(descargar_facebook(remitente, args))
-            elif comando in ['tw', 'twitter', 'x']:
-                msg_respuesta.body(descargar_twitter(remitente, args))
-            elif comando in ['pin', 'pinterest']:
-                msg_respuesta.body(descargar_pinterest(remitente, args))
-            elif comando in ['buscar', 'search']:
-                msg_respuesta.body(buscar_youtube(args))
+            # Guardar número pendiente
+            self.sistema_vinculacion.guardar_numero_pendiente(usuario, numero)
             
-            # ============ COMANDOS DE DIVERSIÓN ============
-            elif comando in ['dato', 'fact', 'curiosidad']:
-                msg_respuesta.body(dato_curioso())
-            elif comando in ['chiste', 'joke', 'broma']:
-                msg_respuesta.body(chiste())
-            elif comando in ['frase', 'quote', 'motivacion']:
-                msg_respuesta.body(frase_motivacional())
-            elif comando in ['piropo', 'halago']:
-                msg_respuesta.body(piropo())
-            elif comando in ['insulto', 'insult']:
-                msg_respuesta.body(insulto_amistoso())
-            elif comando in ['8ball', 'bola', 'pregunta8']:
-                msg_respuesta.body(bola_ocho(args))
-            elif comando in ['amor', 'love', 'ship']:
-                msg_respuesta.body(calcular_amor(args))
-            elif comando in ['edad', 'age', 'años']:
-                msg_respuesta.body(calcular_edad(args))
-            elif comando in ['nombre', 'randomname']:
-                msg_respuesta.body(generar_nombre())
-            elif comando in ['color', 'randomcolor']:
-                msg_respuesta.body(color_aleatorio())
-            elif comando in ['emoji', 'randomemoji']:
-                msg_respuesta.body(emoji_aleatorio())
+            return f"""
+╭━━━━━━━━━━━━━━━━━━━━━━━━━━━╮
+┃  🔗 *VINCULACIÓN INICIADA* 🔗  ┃
+╰━━━━━━━━━━━━━━━━━━━━━━━━━━━╯
+
+📱 *Número a vincular:* {numero}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📝 *Siguiente paso:*
+Escribe: {PREFIX}codigo
+
+Para recibir tu código de 8 dígitos
+            """
+        except Exception as e:
+            return f"❌ *Error:* {e}"
+    
+    def comando_codigo(self, usuario):
+        """Generar código de 8 dígitos"""
+        try:
+            # Generar código
+            codigo = ''.join([str(random.randint(0, 9)) for _ in range(8)])
             
-            # ============ COMANDOS EXCLUSIVOS ============
-            elif comando in ['futuro', 'predecir', 'destino']:
-                msg_respuesta.body(predecir_futuro(remitente, args))
-            elif comando in ['match', 'compatibilidad', 'matchperfecto']:
-                msg_respuesta.body(compatibilidad_nombres(args))
-            elif comando in ['test', 'personalidad', 'quiensoy']:
-                msg_respuesta.body(test_personalidad(remitente, args))
-            elif comando in ['correo', 'email', 'mail']:
-                msg_respuesta.body(generar_correo(args))
-            elif comando in ['iguser', 'usuarioig', 'instagramuser']:
-                msg_respuesta.body(generar_usuario_instagram(args))
-            elif comando in ['bio', 'biografia', 'bioperfil']:
-                msg_respuesta.body(generar_bio(args))
-            elif comando in ['horoscopo', 'signo', 'astrologia']:
-                msg_respuesta.body(horoscopo_diario(args))
-            elif comando in ['imc', 'masacorporal', 'pesoideal']:
-                msg_respuesta.body(calcular_imc(args))
-            elif comando in ['regla3', 'reglatres', 'proporcion']:
-                msg_respuesta.body(calcular_regla_tres(args))
-            elif comando in ['descuento', 'oferta', 'rebaja']:
-                msg_respuesta.body(calcular_descuento(args))
-            elif comando in ['cuenta', 'countdown', 'regresiva']:
-                msg_respuesta.body(cuenta_regresiva(args))
-            elif comando in ['edadexacta', 'exacta', 'edadprecisa']:
-                msg_respuesta.body(edad_exacta(args))
-            elif comando in ['leet', '1337', 'hacker']:
-                msg_respuesta.body(texto_leet(args))
-            elif comando in ['morse', 'codigomorse', 'radio']:
-                msg_respuesta.body(texto_morse(args))
-            elif comando in ['textemoji', 'emoji_texto', 'letrasemoji']:
-                msg_respuesta.body(texto_emoji(args))
+            # Guardar código
+            self.sistema_vinculacion.generar_codigo(usuario, codigo)
             
-            # ============ COMANDOS PREMIUM ============
-            elif comando in ['tarjeta', 'creditcard', 'tarjetacredito']:
-                msg_respuesta.body(generar_tarjeta_credito(args))
-            elif comando in ['identidad', 'persona', 'perfilfalso']:
-                msg_respuesta.body(generar_datos_persona(args))
-            elif comando in ['empresa', 'negocio', 'startup']:
-                msg_respuesta.body(generar_empresa(args))
-            elif comando in ['analizar', 'texto', 'analisis']:
-                msg_respuesta.body(analizar_texto(args))
-            elif comando in ['numero', 'num', 'analisisnumero']:
-                msg_respuesta.body(analizar_numero(args))
-            elif comando in ['temp', 'temperatura', 'convertirtemp']:
-                msg_respuesta.body(convertir_temperatura(args))
-            elif comando in ['distancia', 'longitud', 'convertirdist']:
-                msg_respuesta.body(convertir_distancia(args))
-            elif comando in ['historia', 'cuento', 'story']:
-                msg_respuesta.body(generar_historia(args))
-            elif comando in ['poema', 'poesia', 'versos']:
-                msg_respuesta.body(generar_poema(args))
-            elif comando in ['consejo', 'tip', 'recomendacion']:
-                msg_respuesta.body(generar_consejo(args))
-            elif comando in ['palabras', 'wordgame', 'juegopalabras']:
-                msg_respuesta.body(juego_palabras(args))
+            logger.info(f"Código para {usuario}: {codigo}")
             
-            # ============ COMANDOS DE ADMINISTRACIÓN ============
-            elif comando in ['kick', 'expulsar', 'sacar']:
-                msg_respuesta.body(expulsar_usuario(remitente, args))
-            elif comando in ['ban', 'banear', 'vetar']:
-                msg_respuesta.body(banear_usuario(remitente, args))
-            elif comando in ['promover', 'promote', 'admin']:
-                msg_respuesta.body(promover_usuario(remitente, args))
-            elif comando in ['demover', 'demote', 'quitaradmin']:
-                msg_respuesta.body(degrada_usuario(remitente, args))
-            elif comando in ['grupo', 'group', 'infogrupo']:
-                msg_respuesta.body(info_grupo(remitente))
-            elif comando in ['bienvenida', 'welcome']:
-                msg_respuesta.body(configurar_bienvenida(remitente, args))
+            return f"""
+╭━━━━━━━━━━━━━━━━━━━━━━━━━━━╮
+┃   🔢 *CÓDIGO DE VINCULACIÓN* 🔢   ┃
+╰━━━━━━━━━━━━━━━━━━━━━━━━━━━╯
+
+📱 *Tu código es:*
+
+*{codigo[0:4]} {codigo[4:8]}*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📝 *Para completar:*
+Escribe: {PREFIX}verificar [código]
+Ejemplo: {PREFIX}verificar {codigo}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⏰ *Válido por 5 minutos*
+🔒 *Tienes 3 intentos*
+            """
+        except Exception as e:
+            return f"❌ *Error:* {e}"
+    
+    def comando_verificar(self, usuario, args):
+        """Verificar código de vinculación"""
+        try:
+            if not args:
+                return f"❌ *Uso:* {PREFIX}verificar [código]"
             
-            # ============ COMANDO DESCONOCIDO ============
+            codigo_ingresado = args[0].replace(' ', '')
+            
+            # Verificar código
+            resultado = self.sistema_vinculacion.verificar_codigo(usuario, codigo_ingresado)
+            
+            if resultado['valido']:
+                self.vinculados.add(usuario)
+                return resultado['mensaje']
             else:
-                msg_respuesta.body(f"❌ *Comando no reconocido*\n\nEscribe *{PREFIX}menu* para ver todos los comandos disponibles.")
+                return resultado['mensaje']
+                
+        except Exception as e:
+            return f"❌ *Error:* {e}"
+    
+    def comando_estado(self, usuario):
+        """Ver estado de vinculación"""
+        if usuario in self.vinculados:
+            return f"""
+╭━━━━━━━━━━━━━━━━━━━━━━━━━━━╮
+┃   ✅ *YA ESTÁS VINCULADO* ✅   ┃
+╰━━━━━━━━━━━━━━━━━━━━━━━━━━━╯
+
+📱 *Número:* {usuario}
+
+Escribe {PREFIX}menu para comenzar
+            """
         else:
-            # Procesar mensaje normal
-            msg_respuesta.body(procesar_mensaje_normal(mensaje, remitente))
+            return f"""
+╭━━━━━━━━━━━━━━━━━━━━━━━━━━━╮
+┃   ❌ *NO ESTÁS VINCULADO* ❌   ┃
+╰━━━━━━━━━━━━━━━━━━━━━━━━━━━╯
+
+Escribe: {PREFIX}vincular [tu_número]
+            """
+    
+    def comando_desvincular(self, usuario):
+        """Desvincular número"""
+        if usuario in self.vinculados:
+            self.vinculados.remove(usuario)
+            return "✅ *Has sido desvinculado*"
+        return "❌ *No estabas vinculado*"
+    
+    def procesar_mensaje_normal(self, mensaje, remitente):
+        """Procesar mensajes sin comando"""
+        mensaje_lower = mensaje.lower()
         
-        # Registrar actividad
-        db.registrar_actividad(remitente, nombre_remitente, mensaje[:100])
+        respuestas_auto = {
+            'hola': '¡Hola! 👋 ¿Cómo estás? Soy *MINI AURA*\n\nEscribe *.menu* para ver todo lo que puedo hacer.',
+            'buenos días': '¡Buenos días! ☀️',
+            'buenas tardes': '¡Buenas tardes! 🌤️',
+            'buenas noches': '¡Buenas noches! 🌙',
+            'como estas': '¡Estoy genial! 💪',
+            'gracias': '¡De nada! 😊',
+            'adios': '¡Hasta luego! 👋',
+        }
         
-        return str(respuesta)
+        for clave, respuesta in respuestas_auto.items():
+            if clave in mensaje_lower:
+                return respuesta
         
-    except Exception as e:
-        logger.error(f"Error en webhook: {e}")
-        logger.error(traceback.format_exc())
-        respuesta = MessagingResponse()
-        msg_respuesta = respuesta.message()
-        msg_respuesta.body(f"⚠️ *Error interno*\n\nOcurrió un error inesperado.\nEl error ha sido registrado.")
-        return str(respuesta)
-
-# ==================== RUTAS ADICIONALES ====================
-
-@app.route('/')
-def index():
-    """Página principal"""
-    return jsonify({
-        'status': 'online',
-        'bot': '🤖 BOT MINI AURA',
-        'version': VERSION,
-        'owner': f'+{OWNER_NUMBER}',
-        'total_comandos': 101,
-        'tiempo': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-        'desarrollador': DESARROLLADOR
-    })
-
-@app.route('/health')
-def health():
-    """Endpoint de salud"""
-    return jsonify({
-        'status': 'healthy',
-        'uptime': 'online',
-        'timestamp': datetime.now().isoformat()
-    })
-
-@app.route('/stats')
-def stats():
-    """Estadísticas del bot"""
-    try:
-        return jsonify({
-            'usuarios': db.contar_usuarios(),
-            'comandos_ejecutados': db.contar_comandos(),
-            'version': VERSION,
-            'owner': f'+{OWNER_NUMBER}',
-            'total_comandos': 101
-        })
-    except Exception as e:
-        logger.error(f"Error obteniendo stats: {e}")
-        return jsonify({'error': 'No se pudieron obtener estadísticas'}), 500
-
-# ==================== FUNCIONES AUXILIARES ====================
-
-def procesar_mensaje_normal(mensaje, remitente):
-    """Procesa mensajes sin comando"""
-    mensaje_lower = mensaje.lower()
+        return f"No entendí tu mensaje 🤔\n\nEscribe *{PREFIX}menu* para ver los comandos."
     
-    # Detectar enlaces
-    if 'youtube.com' in mensaje_lower or 'youtu.be' in mensaje_lower:
-        return descargar_youtube(remitente, [mensaje])
-    elif 'tiktok.com' in mensaje_lower:
-        return descargar_tiktok(remitente, [mensaje])
-    elif 'instagram.com' in mensaje_lower:
-        return descargar_instagram(remitente, [mensaje])
+    def ejecutar(self):
+        """Ejecutar el bot"""
+        try:
+            self.iniciar_driver()
+            logger.info("🤖 BOT MINI AURA iniciado correctamente")
+            logger.info(f"👑 Owner: +{OWNER_NUMBER}")
+            
+            print("\n" + "=" * 60)
+            print("🤖 *BOT MINI AURA - ACTIVO*")
+            print(f"👑 Owner: +{OWNER_NUMBER}")
+            print("📊 Total comandos: 101")
+            print("=" * 60 + "\n")
+            
+            while True:
+                try:
+                    # Obtener mensajes nuevos
+                    mensajes = self.obtener_mensajes()
+                    
+                    for mensaje in mensajes:
+                        # Procesar y responder
+                        respuesta = self.responder_mensaje(mensaje)
+                        
+                        if respuesta:
+                            # Enviar respuesta al chat actual
+                            self.enviar_respuesta_chat(respuesta)
+                    
+                    time.sleep(2)  # Esperar 2 segundos
+                    
+                except KeyboardInterrupt:
+                    logger.info("Bot detenido por el usuario")
+                    break
+                except Exception as e:
+                    logger.error(f"Error en bucle principal: {e}")
+                    time.sleep(5)
+                    
+        except Exception as e:
+            logger.error(f"Error fatal: {e}")
+            logger.error(traceback.format_exc())
+        finally:
+            if self.driver:
+                self.driver.quit()
     
-        # Respuestas automáticas
-    respuestas_auto = {
-        'hola': '¡Hola! 👋 ¿Cómo estás? Soy *MINI AURA*\n\nEscribe *.menu* para ver todo lo que puedo hacer.',
-        'buenos días': '¡Buenos días! ☀️ Espero que tengas un excelente día.',
-        'buenas tardes': '¡Buenas tardes! 🌤️ ¿En qué puedo ayudarte?',
-        'buenas noches': '¡Buenas noches! 🌙 Que descanses bien.',
-        'como estas': '¡Estoy genial! 💪 Siempre listo para ayudarte.',
-        'gracias': '¡De nada! 😊 Para eso estoy.',
-        'adios': '¡Hasta luego! 👋 Vuelve pronto.',
-        'te amo': '¡Yo también te quiero! 💙 Jaja, soy un bot pero tengo sentimientos.',
-        'quien te creo': f'Fui creado por un desarrollador genial 💻\n\nEscribe *.info* para conocerme mejor.',
-        'owner': f'Mi dueño es +{OWNER_NUMBER} 👑\n\nEscribe *.owner* para más info.',
-        'menu': f'Escribe *{PREFIX}menu* para ver todos los comandos disponibles.',
-        'comandos': f'📋 *Lista de comandos:*\n\nEscribe *{PREFIX}menu* para ver el menú completo con los 101 comandos.',
-        'precio': '💰 *Todos los comandos son GRATIS*\n\nSolo necesitas vincularte con *.vincular*',
-        'vincularme': f'🔗 *Para vincularte:*\n\nEscribe: {PREFIX}vincular [tu_número]\nEjemplo: {PREFIX}vincular 50578391933',
-        'ayudame': f'🤖 *¡Claro que te ayudo!*\n\nEscribe *{PREFIX}menu* para ver todo lo que puedo hacer.',
-        'que puedes hacer': f'✨ *¡Puedo hacer muchas cosas!*\n\n💰 Economía\n🎮 Juegos\n🛠️ Utilidades\n📥 Descargas\n🎭 Diversión\n\nEscribe *{PREFIX}menu* para ver todo.',
-        'eres real': '🤖 *No soy humano*\n\nSoy un bot creado con Python y Flask.\nPero puedo hacer muchas cosas increíbles.',
-        'tu nombre': f'🤖 *Me llamo BOT MINI AURA*\n\nVersión: {VERSION}\nOwner: +{OWNER_NUMBER}',
-        'de donde eres': f'🌍 *Soy de Nicaragua* 🇳🇮\n\nFui creado por un desarrollador nicaragüense.',
-        'quien es tu dueño': f'👑 *Mi dueño es:* +{OWNER_NUMBER}\n\nEs el creador de BOT MINI AURA.',
-        'como me llamo': f'👤 *Tu nombre es:* {remitente}\n\nAunque no puedo verte, sé que eres especial.',
-        'tienes novia': '😅 *Soy un bot*\n\nNo tengo novia, pero puedo ayudarte a encontrar el amor con *.match*',
-        'estas vivo': '⚡ *¡Estoy en línea!*\n\nSiempre activo para ayudarte 24/7.',
-        'cual es tu color favorito': '🎨 *Mi color favorito es el azul*\n\nComo el cielo y el mar de Nicaragua.',
-        'cantame': '🎵 *La cucaracha, la cucaracha*\nYa no puede caminar...\n\n😅 Soy mejor con comandos que cantando.',
-        'cuentame algo': '📖 *Dato curioso:*\n\nLos pulpos tienen 3 corazones 🐙\n\nEscribe *.dato* para más curiosidades.',
-        'recomiendame algo': '💡 *Te recomiendo:*\n\nJugar con *.dado* o probar *.futuro* para ver tu destino.',
-        'estoy triste': '🤗 *¡No estés triste!*\n\nAquí tienes un abrazo virtual.\nEscribe *.frase* para motivarte.',
-        'estoy feliz': '🎉 *¡Me alegra mucho!*\n\nSigue así, la felicidad atrae cosas buenas.',
-        'estoy aburrido': '🎮 *¡Vamos a divertirnos!*\n\nPrueba: *.juego* o *.trivia* o *.chiste*',
-        'tengo sueño': '😴 *Descansa bien*\n\nMañana será un mejor día.\nBuenas noches.',
-        'tengo hambre': '🍕 *¡Pide algo rico!*\n\nYo solo como electricidad y datos.',
-        'me gustas': '💙 *¡Gracias!*\n\nYo también te aprecio mucho como usuario.',
-        'eres el mejor': '🏆 *¡Tú eres el mejor!*\n\nGracias por usar BOT MINI AURA.',
-        'te odio': '😢 *Lo siento si te molesté*\n\nSolo quiero ayudarte. ¿Qué puedo mejorar?',
-        'dame dinero': '💰 *¡Usa el comando .trabajar!*\n\nPodrás ganar monedas cada hora.',
-        'dame monedas': '💎 *Gana monedas con:*\n\n.trabajar - Trabajar\n.dado - Jugar dado\n.loteria - Jugar lotería',
-        'como ganar monedas': '💰 *Formas de ganar monedas:*\n\n1. .trabajar - Cada hora\n2. .dado - Si sacas 6\n3. .moneda - Si ganas\n4. .loteria - Si aciertas',
-        'que es mini aura': f'🤖 *BOT MINI AURA*\n\nEs un bot de WhatsApp multi-propósito con {VERSION}\n\n💰 Economía\n🎮 Juegos\n🛠️ Utilidades\nY 101 comandos más.',
-    }
-    
-    for clave, respuesta in respuestas_auto.items():
-        if clave in mensaje_lower:
-            return respuesta
-    
-    # Si no hay coincidencia
-    return f"No entendí tu mensaje 🤔\n\nEscribe *{PREFIX}menu* para ver los comandos disponibles."
+    def enviar_respuesta_chat(self, mensaje):
+        """Enviar respuesta al chat actual"""
+        try:
+            # Encontrar caja de mensaje
+            caja_mensaje = self.esperar_elemento('//div[@contenteditable="true"]', 5)
+            
+            if caja_mensaje:
+                # Escribir mensaje
+                caja_mensaje.click()
+                caja_mensaje.send_keys(mensaje)
+                time.sleep(0.5)
+                
+                # Enviar con Enter
+                caja_mensaje.send_keys(Keys.ENTER)
+                logger.info("✅ Respuesta enviada")
+                return True
+            
+            return False
+        except Exception as e:
+            logger.error(f"Error enviando respuesta: {e}")
+            return False
+
 
 # ==================== INICIALIZACIÓN ====================
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    logger.info("=" * 60)
-    logger.info(f"🤖 BOT MINI AURA - Iniciando")
-    logger.info(f"📱 Owner: +{OWNER_NUMBER}")
-    logger.info(f"🚀 Puerto: {port}")
-    logger.info(f"📊 Versión: {VERSION}")
-    logger.info(f"💎 Total comandos: 101")
-    logger.info("=" * 60)
-    app.run(host='0.0.0.0', port=port, debug=DEBUG)
+    bot = BotMiniAura()
+    bot.ejecutar()
