@@ -3,8 +3,9 @@
 
 """
 🤖 BOT MINI AURA - Bot Multi-propósito para WhatsApp
-Version: 2.0.0
+Versión: 3.0.0
 Owner: +50578391933
+Total de comandos: 101
 """
 
 import os
@@ -28,7 +29,7 @@ logging.basicConfig(
 logger = logging.getLogger('MINI-AURA')
 
 # Agregar directorio raíz al path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent))
 
 try:
     from flask import Flask, request, jsonify
@@ -44,6 +45,8 @@ try:
     from src.commands.owner import *
     from src.commands.vinculacion import *
     from src.commands.diversion import *
+    from src.commands.exclusivos import *
+    from src.commands.premium import *
     from src.lib.database import Database
     from src.lib.functions import *
     from src.lib.vincular import SistemaVinculacion
@@ -218,7 +221,7 @@ Escribe: {PREFIX}vincular [tu_número]
                 msg_respuesta.body(calculadora(args))
             elif comando in ['traducir', 'translate', 'trad']:
                 msg_respuesta.body(traducir(args))
-            elif comando in ['qr', 'qrcode', 'codigoqr']:
+            elif comando in ['qrcode', 'codigoqr']:
                 msg_respuesta.body(generar_qr(args))
             elif comando in ['password', 'contraseña', 'clave', 'pass']:
                 msg_respuesta.body(generar_password(args))
@@ -248,6 +251,8 @@ Escribe: {PREFIX}vincular [tu_número]
             # ============ COMANDOS DE DESCARGAS ============
             elif comando in ['yt', 'youtube', 'video']:
                 msg_respuesta.body(descargar_youtube(remitente, args))
+            elif comando in ['mp3', 'audio', 'musica']:
+                msg_respuesta.body(descargar_youtube_mp3(remitente, args))
             elif comando in ['tiktok', 'tk', 'tik']:
                 msg_respuesta.body(descargar_tiktok(remitente, args))
             elif comando in ['ig', 'instagram', 'insta']:
@@ -256,6 +261,10 @@ Escribe: {PREFIX}vincular [tu_número]
                 msg_respuesta.body(descargar_facebook(remitente, args))
             elif comando in ['tw', 'twitter', 'x']:
                 msg_respuesta.body(descargar_twitter(remitente, args))
+            elif comando in ['pin', 'pinterest']:
+                msg_respuesta.body(descargar_pinterest(remitente, args))
+            elif comando in ['buscar', 'search']:
+                msg_respuesta.body(buscar_youtube(args))
             
             # ============ COMANDOS DE DIVERSIÓN ============
             elif comando in ['dato', 'fact', 'curiosidad']:
@@ -280,8 +289,62 @@ Escribe: {PREFIX}vincular [tu_número]
                 msg_respuesta.body(color_aleatorio())
             elif comando in ['emoji', 'randomemoji']:
                 msg_respuesta.body(emoji_aleatorio())
-            elif comando in ['meme', 'randommeme']:
-                msg_respuesta.body(meme_aleatorio())
+            
+            # ============ COMANDOS EXCLUSIVOS ============
+            elif comando in ['futuro', 'predecir', 'destino']:
+                msg_respuesta.body(predecir_futuro(remitente, args))
+            elif comando in ['match', 'compatibilidad', 'matchperfecto']:
+                msg_respuesta.body(compatibilidad_nombres(args))
+            elif comando in ['test', 'personalidad', 'quiensoy']:
+                msg_respuesta.body(test_personalidad(remitente, args))
+            elif comando in ['correo', 'email', 'mail']:
+                msg_respuesta.body(generar_correo(args))
+            elif comando in ['iguser', 'usuarioig', 'instagramuser']:
+                msg_respuesta.body(generar_usuario_instagram(args))
+            elif comando in ['bio', 'biografia', 'bioperfil']:
+                msg_respuesta.body(generar_bio(args))
+            elif comando in ['horoscopo', 'signo', 'astrologia']:
+                msg_respuesta.body(horoscopo_diario(args))
+            elif comando in ['imc', 'masacorporal', 'pesoideal']:
+                msg_respuesta.body(calcular_imc(args))
+            elif comando in ['regla3', 'reglatres', 'proporcion']:
+                msg_respuesta.body(calcular_regla_tres(args))
+            elif comando in ['descuento', 'oferta', 'rebaja']:
+                msg_respuesta.body(calcular_descuento(args))
+            elif comando in ['cuenta', 'countdown', 'regresiva']:
+                msg_respuesta.body(cuenta_regresiva(args))
+            elif comando in ['edadexacta', 'exacta', 'edadprecisa']:
+                msg_respuesta.body(edad_exacta(args))
+            elif comando in ['leet', '1337', 'hacker']:
+                msg_respuesta.body(texto_leet(args))
+            elif comando in ['morse', 'codigomorse', 'radio']:
+                msg_respuesta.body(texto_morse(args))
+            elif comando in ['textemoji', 'emoji_texto', 'letrasemoji']:
+                msg_respuesta.body(texto_emoji(args))
+            
+            # ============ COMANDOS PREMIUM ============
+            elif comando in ['tarjeta', 'creditcard', 'tarjetacredito']:
+                msg_respuesta.body(generar_tarjeta_credito(args))
+            elif comando in ['identidad', 'persona', 'perfilfalso']:
+                msg_respuesta.body(generar_datos_persona(args))
+            elif comando in ['empresa', 'negocio', 'startup']:
+                msg_respuesta.body(generar_empresa(args))
+            elif comando in ['analizar', 'texto', 'analisis']:
+                msg_respuesta.body(analizar_texto(args))
+            elif comando in ['numero', 'num', 'analisisnumero']:
+                msg_respuesta.body(analizar_numero(args))
+            elif comando in ['temp', 'temperatura', 'convertirtemp']:
+                msg_respuesta.body(convertir_temperatura(args))
+            elif comando in ['distancia', 'longitud', 'convertirdist']:
+                msg_respuesta.body(convertir_distancia(args))
+            elif comando in ['historia', 'cuento', 'story']:
+                msg_respuesta.body(generar_historia(args))
+            elif comando in ['poema', 'poesia', 'versos']:
+                msg_respuesta.body(generar_poema(args))
+            elif comando in ['consejo', 'tip', 'recomendacion']:
+                msg_respuesta.body(generar_consejo(args))
+            elif comando in ['palabras', 'wordgame', 'juegopalabras']:
+                msg_respuesta.body(juego_palabras(args))
             
             # ============ COMANDOS DE ADMINISTRACIÓN ============
             elif comando in ['kick', 'expulsar', 'sacar']:
@@ -299,7 +362,7 @@ Escribe: {PREFIX}vincular [tu_número]
             
             # ============ COMANDO DESCONOCIDO ============
             else:
-                msg_respuesta.body(f"❌ *Comando no reconocido*\n\nEscribe *{PREFIX}menu* para ver todos los comandos.")
+                msg_respuesta.body(f"❌ *Comando no reconocido*\n\nEscribe *{PREFIX}menu* para ver todos los comandos disponibles.")
         else:
             # Procesar mensaje normal
             msg_respuesta.body(procesar_mensaje_normal(mensaje, remitente))
@@ -327,6 +390,7 @@ def index():
         'bot': '🤖 BOT MINI AURA',
         'version': VERSION,
         'owner': f'+{OWNER_NUMBER}',
+        'total_comandos': 101,
         'tiempo': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         'desarrollador': DESARROLLADOR
     })
@@ -348,7 +412,8 @@ def stats():
             'usuarios': db.contar_usuarios(),
             'comandos_ejecutados': db.contar_comandos(),
             'version': VERSION,
-            'owner': f'+{OWNER_NUMBER}'
+            'owner': f'+{OWNER_NUMBER}',
+            'total_comandos': 101
         })
     except Exception as e:
         logger.error(f"Error obteniendo stats: {e}")
@@ -368,7 +433,7 @@ def procesar_mensaje_normal(mensaje, remitente):
     elif 'instagram.com' in mensaje_lower:
         return descargar_instagram(remitente, [mensaje])
     
-    # Respuestas automáticas
+        # Respuestas automáticas
     respuestas_auto = {
         'hola': '¡Hola! 👋 ¿Cómo estás? Soy *MINI AURA*\n\nEscribe *.menu* para ver todo lo que puedo hacer.',
         'buenos días': '¡Buenos días! ☀️ Espero que tengas un excelente día.',
@@ -379,23 +444,54 @@ def procesar_mensaje_normal(mensaje, remitente):
         'adios': '¡Hasta luego! 👋 Vuelve pronto.',
         'te amo': '¡Yo también te quiero! 💙 Jaja, soy un bot pero tengo sentimientos.',
         'quien te creo': f'Fui creado por un desarrollador genial 💻\n\nEscribe *.info* para conocerme mejor.',
-        'owner': f'Mi dueño es +{OWNER_NUMBER} 👑\n\nEscribe *.owner* para más info.'
+        'owner': f'Mi dueño es +{OWNER_NUMBER} 👑\n\nEscribe *.owner* para más info.',
+        'menu': f'Escribe *{PREFIX}menu* para ver todos los comandos disponibles.',
+        'comandos': f'📋 *Lista de comandos:*\n\nEscribe *{PREFIX}menu* para ver el menú completo con los 101 comandos.',
+        'precio': '💰 *Todos los comandos son GRATIS*\n\nSolo necesitas vincularte con *.vincular*',
+        'vincularme': f'🔗 *Para vincularte:*\n\nEscribe: {PREFIX}vincular [tu_número]\nEjemplo: {PREFIX}vincular 50578391933',
+        'ayudame': f'🤖 *¡Claro que te ayudo!*\n\nEscribe *{PREFIX}menu* para ver todo lo que puedo hacer.',
+        'que puedes hacer': f'✨ *¡Puedo hacer muchas cosas!*\n\n💰 Economía\n🎮 Juegos\n🛠️ Utilidades\n📥 Descargas\n🎭 Diversión\n\nEscribe *{PREFIX}menu* para ver todo.',
+        'eres real': '🤖 *No soy humano*\n\nSoy un bot creado con Python y Flask.\nPero puedo hacer muchas cosas increíbles.',
+        'tu nombre': f'🤖 *Me llamo BOT MINI AURA*\n\nVersión: {VERSION}\nOwner: +{OWNER_NUMBER}',
+        'de donde eres': f'🌍 *Soy de Nicaragua* 🇳🇮\n\nFui creado por un desarrollador nicaragüense.',
+        'quien es tu dueño': f'👑 *Mi dueño es:* +{OWNER_NUMBER}\n\nEs el creador de BOT MINI AURA.',
+        'como me llamo': f'👤 *Tu nombre es:* {remitente}\n\nAunque no puedo verte, sé que eres especial.',
+        'tienes novia': '😅 *Soy un bot*\n\nNo tengo novia, pero puedo ayudarte a encontrar el amor con *.match*',
+        'estas vivo': '⚡ *¡Estoy en línea!*\n\nSiempre activo para ayudarte 24/7.',
+        'cual es tu color favorito': '🎨 *Mi color favorito es el azul*\n\nComo el cielo y el mar de Nicaragua.',
+        'cantame': '🎵 *La cucaracha, la cucaracha*\nYa no puede caminar...\n\n😅 Soy mejor con comandos que cantando.',
+        'cuentame algo': '📖 *Dato curioso:*\n\nLos pulpos tienen 3 corazones 🐙\n\nEscribe *.dato* para más curiosidades.',
+        'recomiendame algo': '💡 *Te recomiendo:*\n\nJugar con *.dado* o probar *.futuro* para ver tu destino.',
+        'estoy triste': '🤗 *¡No estés triste!*\n\nAquí tienes un abrazo virtual.\nEscribe *.frase* para motivarte.',
+        'estoy feliz': '🎉 *¡Me alegra mucho!*\n\nSigue así, la felicidad atrae cosas buenas.',
+        'estoy aburrido': '🎮 *¡Vamos a divertirnos!*\n\nPrueba: *.juego* o *.trivia* o *.chiste*',
+        'tengo sueño': '😴 *Descansa bien*\n\nMañana será un mejor día.\nBuenas noches.',
+        'tengo hambre': '🍕 *¡Pide algo rico!*\n\nYo solo como electricidad y datos.',
+        'me gustas': '💙 *¡Gracias!*\n\nYo también te aprecio mucho como usuario.',
+        'eres el mejor': '🏆 *¡Tú eres el mejor!*\n\nGracias por usar BOT MINI AURA.',
+        'te odio': '😢 *Lo siento si te molesté*\n\nSolo quiero ayudarte. ¿Qué puedo mejorar?',
+        'dame dinero': '💰 *¡Usa el comando .trabajar!*\n\nPodrás ganar monedas cada hora.',
+        'dame monedas': '💎 *Gana monedas con:*\n\n.trabajar - Trabajar\n.dado - Jugar dado\n.loteria - Jugar lotería',
+        'como ganar monedas': '💰 *Formas de ganar monedas:*\n\n1. .trabajar - Cada hora\n2. .dado - Si sacas 6\n3. .moneda - Si ganas\n4. .loteria - Si aciertas',
+        'que es mini aura': f'🤖 *BOT MINI AURA*\n\nEs un bot de WhatsApp multi-propósito con {VERSION}\n\n💰 Economía\n🎮 Juegos\n🛠️ Utilidades\nY 101 comandos más.',
     }
     
     for clave, respuesta in respuestas_auto.items():
         if clave in mensaje_lower:
             return respuesta
     
+    # Si no hay coincidencia
     return f"No entendí tu mensaje 🤔\n\nEscribe *{PREFIX}menu* para ver los comandos disponibles."
 
 # ==================== INICIALIZACIÓN ====================
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    logger.info("=" * 50)
-    logger.info(f"🤖 BOT MINI AURA iniciando")
+    logger.info("=" * 60)
+    logger.info(f"🤖 BOT MINI AURA - Iniciando")
     logger.info(f"📱 Owner: +{OWNER_NUMBER}")
     logger.info(f"🚀 Puerto: {port}")
     logger.info(f"📊 Versión: {VERSION}")
-    logger.info("=" * 50)
+    logger.info(f"💎 Total comandos: 101")
+    logger.info("=" * 60)
     app.run(host='0.0.0.0', port=port, debug=DEBUG)
