@@ -1,3 +1,2 @@
 waeys
-qrcode
-pillow
+flask
