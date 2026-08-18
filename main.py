@@ -21,7 +21,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('logs/bot.log'),
+        logging.FileHandler('bot.log'),
         logging.StreamHandler()
     ]
 )
@@ -36,7 +36,8 @@ except ImportError:
 
 # Importar configuraciones
 from config.settings import *
-from src.lib.database import Database
+from lib.database import Database
+from lib.vincular import SistemaVinculacion
 
 # ==================== CLASE PRINCIPAL ====================
 
@@ -45,30 +46,9 @@ class BotMiniAura:
         self.socket = None
         self.db = Database()
         self.db.initialize()
-        self.vinculados = self.cargar_vinculados()
+        self.sistema_vinculacion = SistemaVinculacion()
         self.codigos_pendientes = {}
         self.mensajes_procesados = set()
-        
-    def cargar_vinculados(self):
-        """Cargar usuarios vinculados"""
-        try:
-            archivo = Path('src/data/json/vinculados.json')
-            if archivo.exists():
-                with open(archivo, 'r') as f:
-                    return set(json.load(f))
-            return set()
-        except:
-            return set()
-    
-    def guardar_vinculados(self):
-        """Guardar usuarios vinculados"""
-        try:
-            archivo = Path('src/data/json/vinculados.json')
-            archivo.parent.mkdir(parents=True, exist_ok=True)
-            with open(archivo, 'w') as f:
-                json.dump(list(self.vinculados), f, indent=2)
-        except Exception as e:
-            logger.error(f"Error guardando vinculados: {e}")
     
     async def iniciar(self):
         """Iniciar el bot"""
@@ -155,7 +135,7 @@ class BotMiniAura:
                 return self.comando_desvincular(remitente)
             
             # ============ VERIFICAR VINCULACIÓN ============
-            if remitente not in self.vinculados and remitente != OWNER_NUMBER:
+            if not self.sistema_vinculacion.esta_vinculado(remitente) and remitente != OWNER_NUMBER:
                 return f"""
 ╭━━━━━━━━━━━━━━━━━━━━━━━━━━━╮
 ┃   ⚠️ *VINCULACIÓN REQUERIDA* ⚠️   ┃
@@ -171,257 +151,257 @@ Escribe: {PREFIX}vincular [tu_número]
             
             # ============ COMANDOS GENERALES ============
             if comando in ['menu', 'ayuda', 'help', 'start']:
-                from src.commands.menu import mostrar_menu_principal
+                from commands.menu import mostrar_menu_principal
                 return mostrar_menu_principal()
             
             elif comando in ['ping', 'test', 'latencia']:
-                from src.commands.utilidades import verificar_ping
+                from commands.utilidades import verificar_ping
                 return verificar_ping()
             
             elif comando in ['info', 'bot', 'about']:
-                from src.commands.utilidades import info_bot
+                from commands.utilidades import info_bot
                 return info_bot()
             
             # ============ ECONOMÍA ============
             elif comando in ['monedas', 'balance', 'bal', 'wallet']:
-                from src.commands.economia import ver_balance
+                from commands.economia import ver_balance
                 return ver_balance(remitente)
             
             elif comando in ['trabajar', 'work', 'minar']:
-                from src.commands.economia import trabajar
+                from commands.economia import trabajar
                 return trabajar(remitente)
             
             elif comando in ['top', 'ranking', 'top10']:
-                from src.commands.economia import ver_ranking
+                from commands.economia import ver_ranking
                 return ver_ranking()
             
             elif comando in ['robar', 'steal']:
-                from src.commands.economia import robar
+                from commands.economia import robar
                 return robar(remitente, args)
             
             elif comando in ['depositar', 'dep', 'banco']:
-                from src.commands.economia import depositar
+                from commands.economia import depositar
                 return depositar(remitente, args)
             
             elif comando in ['retirar', 'ret', 'sacar']:
-                from src.commands.economia import retirar
+                from commands.economia import retirar
                 return retirar(remitente, args)
             
             elif comando in ['regalar', 'enviar', 'transferir']:
-                from src.commands.economia import regalar_monedas
+                from commands.economia import regalar_monedas
                 return regalar_monedas(remitente, args)# ============ JUEGOS ============
 elif comando in ['dado', 'dice', 'roll']:
-    from src.commands.juegos import tirar_dado
+    from commands.juegos import tirar_dado
     return tirar_dado(remitente)
 
 elif comando in ['moneda', 'coinflip', 'cara']:
-    from src.commands.juegos import lanzar_moneda
+    from commands.juegos import lanzar_moneda
     return lanzar_moneda(remitente)
 
 elif comando in ['ppt', 'piedra', 'rps']:
-    from src.commands.juegos import piedra_papel_tijera
+    from commands.juegos import piedra_papel_tijera
     return piedra_papel_tijera(remitente, args)
 
 elif comando in ['ahorcado', 'ahorcar']:
-    from src.commands.juegos import ahorcado
+    from commands.juegos import ahorcado
     return ahorcado(remitente)
 
 elif comando in ['trivia', 'quiz']:
-    from src.commands.juegos import trivia
+    from commands.juegos import trivia
     return trivia(remitente)
 
 elif comando in ['ruleta', 'rusa']:
-    from src.commands.juegos import ruleta_rusa
+    from commands.juegos import ruleta_rusa
     return ruleta_rusa(remitente)
 
 elif comando in ['loteria', 'loto']:
-    from src.commands.juegos import loteria
+    from commands.juegos import loteria
     return loteria(remitente)
 
 # ============ UTILIDADES ============
 elif comando in ['clima', 'weather']:
-    from src.commands.utilidades import obtener_clima
+    from commands.utilidades import obtener_clima
     return obtener_clima(args)
 
 elif comando in ['calc', 'calcular', 'math']:
-    from src.commands.utilidades import calculadora
+    from commands.utilidades import calculadora
     return calculadora(args)
 
 elif comando in ['password', 'pass']:
-    from src.commands.utilidades import generar_password
+    from commands.utilidades import generar_password
     return generar_password(args)
 
 elif comando in ['fecha', 'date']:
-    from src.commands.utilidades import ver_fecha
+    from commands.utilidades import ver_fecha
     return ver_fecha()
 
 elif comando in ['hora', 'time']:
-    from src.commands.utilidades import ver_hora
+    from commands.utilidades import ver_hora
     return ver_hora()
 
 elif comando in ['binario', 'bin']:
-    from src.commands.utilidades import texto_binario
+    from commands.utilidades import texto_binario
     return texto_binario(args)
 
 elif comando in ['hex', 'hexadecimal']:
-    from src.commands.utilidades import texto_hex
+    from commands.utilidades import texto_hex
     return texto_hex(args)
 
 elif comando in ['base64', 'b64']:
-    from src.commands.utilidades import texto_base64
+    from commands.utilidades import texto_base64
     return texto_base64(args)
 
 elif comando in ['md5', 'hash']:
-    from src.commands.utilidades import texto_md5
+    from commands.utilidades import texto_md5
     return texto_md5(args)
 
 elif comando in ['reverso', 'reverse']:
-    from src.commands.utilidades import texto_reverso
+    from commands.utilidades import texto_reverso
     return texto_reverso(args)
 
 elif comando in ['mayus', 'uppercase']:
-    from src.commands.utilidades import texto_mayus
+    from commands.utilidades import texto_mayus
     return texto_mayus(args)
 
 elif comando in ['minus', 'lowercase']:
-    from src.commands.utilidades import texto_minus
+    from commands.utilidades import texto_minus
     return texto_minus(args)
 
 elif comando in ['contar', 'count']:
-    from src.commands.utilidades import contar_caracteres
+    from commands.utilidades import contar_caracteres
     return contar_caracteres(args)
 
 # ============ DIVERSIÓN ============
 elif comando in ['dato', 'fact']:
-    from src.commands.diversion import dato_curioso
+    from commands.diversion import dato_curioso
     return dato_curioso()
 
 elif comando in ['chiste', 'joke']:
-    from src.commands.diversion import chiste
+    from commands.diversion import chiste
     return chiste()
 
 elif comando in ['frase', 'motivacion']:
-    from src.commands.diversion import frase_motivacional
+    from commands.diversion import frase_motivacional
     return frase_motivacional()
 
 elif comando in ['piropo', 'halago']:
-    from src.commands.diversion import piropo
+    from commands.diversion import piropo
     return piropo()
 
 elif comando in ['8ball', 'bola']:
-    from src.commands.diversion import bola_ocho
+    from commands.diversion import bola_ocho
     return bola_ocho(args)
 
 elif comando in ['amor', 'love']:
-    from src.commands.diversion import calcular_amor
+    from commands.diversion import calcular_amor
     return calcular_amor(args)
 
 elif comando in ['edad', 'age']:
-    from src.commands.diversion import calcular_edad
+    from commands.diversion import calcular_edad
     return calcular_edad(args)
 
 elif comando in ['nombre', 'randomname']:
-    from src.commands.diversion import generar_nombre
+    from commands.diversion import generar_nombre
     return generar_nombre()
 
 elif comando in ['color', 'randomcolor']:
-    from src.commands.diversion import color_aleatorio
+    from commands.diversion import color_aleatorio
     return color_aleatorio()
 
 elif comando in ['emoji', 'randomemoji']:
-    from src.commands.diversion import emoji_aleatorio
+    from commands.diversion import emoji_aleatorio
     return emoji_aleatorio()
 
 # ============ EXCLUSIVOS ============
 elif comando in ['futuro', 'predecir']:
-    from src.commands.exclusivos import predecir_futuro
+    from commands.exclusivos import predecir_futuro
     return predecir_futuro(remitente, args)
 
 elif comando in ['match', 'compatibilidad']:
-    from src.commands.exclusivos import compatibilidad_nombres
+    from commands.exclusivos import compatibilidad_nombres
     return compatibilidad_nombres(args)
 
 elif comando in ['test', 'personalidad']:
-    from src.commands.exclusivos import test_personalidad
+    from commands.exclusivos import test_personalidad
     return test_personalidad(remitente, args)
 
 elif comando in ['correo', 'email']:
-    from src.commands.exclusivos import generar_correo
+    from commands.exclusivos import generar_correo
     return generar_correo(args)
 
 elif comando in ['iguser', 'usuarioig']:
-    from src.commands.exclusivos import generar_usuario_instagram
+    from commands.exclusivos import generar_usuario_instagram
     return generar_usuario_instagram(args)
 
 elif comando in ['bio', 'biografia']:
-    from src.commands.exclusivos import generar_bio
+    from commands.exclusivos import generar_bio
     return generar_bio(args)
 
 elif comando in ['horoscopo', 'signo']:
-    from src.commands.exclusivos import horoscopo_diario
+    from commands.exclusivos import horoscopo_diario
     return horoscopo_diario(args)
 
 elif comando in ['imc', 'masacorporal']:
-    from src.commands.exclusivos import calcular_imc
+    from commands.exclusivos import calcular_imc
     return calcular_imc(args)
 
 elif comando in ['regla3', 'reglatres']:
-    from src.commands.exclusivos import calcular_regla_tres
+    from commands.exclusivos import calcular_regla_tres
     return calcular_regla_tres(args)
 
 elif comando in ['descuento', 'oferta']:
-    from src.commands.exclusivos import calcular_descuento
+    from commands.exclusivos import calcular_descuento
     return calcular_descuento(args)
 
 elif comando in ['cuenta', 'countdown']:
-    from src.commands.exclusivos import cuenta_regresiva
+    from commands.exclusivos import cuenta_regresiva
     return cuenta_regresiva(args)
 
 elif comando in ['edadexacta', 'exacta']:
-    from src.commands.exclusivos import edad_exacta
+    from commands.exclusivos import edad_exacta
     return edad_exacta(args)
 
 elif comando in ['leet', '1337']:
-    from src.commands.exclusivos import texto_leet
+    from commands.exclusivos import texto_leet
     return texto_leet(args)
 
 elif comando in ['morse', 'codigomorse']:
-    from src.commands.exclusivos import texto_morse
+    from commands.exclusivos import texto_morse
     return texto_morse(args)
 
 elif comando in ['textemoji', 'emoji_texto']:
-    from src.commands.exclusivos import texto_emoji
+    from commands.exclusivos import texto_emoji
     return texto_emoji(args)            # ============ PREMIUM ============
             elif comando in ['analizar', 'texto']:
-                from src.commands.premium import analizar_texto
+                from commands.premium import analizar_texto
                 return analizar_texto(args)
             
             elif comando in ['numero', 'num']:
-                from src.commands.premium import analizar_numero
+                from commands.premium import analizar_numero
                 return analizar_numero(args)
             
             elif comando in ['temp', 'temperatura']:
-                from src.commands.premium import convertir_temperatura
+                from commands.premium import convertir_temperatura
                 return convertir_temperatura(args)
             
             elif comando in ['distancia', 'longitud']:
-                from src.commands.premium import convertir_distancia
+                from commands.premium import convertir_distancia
                 return convertir_distancia(args)
             
             elif comando in ['historia', 'cuento']:
-                from src.commands.premium import generar_historia
+                from commands.premium import generar_historia
                 return generar_historia(args)
             
             elif comando in ['poema', 'poesia']:
-                from src.commands.premium import generar_poema
+                from commands.premium import generar_poema
                 return generar_poema(args)
             
             elif comando in ['consejo', 'tip']:
-                from src.commands.premium import generar_consejo
+                from commands.premium import generar_consejo
                 return generar_consejo(args)
             
             elif comando in ['palabras', 'wordgame']:
-                from src.commands.premium import juego_palabras
+                from commands.premium import juego_palabras
                 return juego_palabras(args)
             
             # ============ DESCONOCIDO ============
@@ -435,7 +415,7 @@ elif comando in ['textemoji', 'emoji_texto']:
     # ============ COMANDOS DE VINCULACIÓN ============
     
     def comando_vincular(self, usuario, args):
-        if usuario in self.vinculados:
+        if self.sistema_vinculacion.esta_vinculado(usuario):
             return f"✅ *Ya estás vinculado*\n\nEscribe {PREFIX}menu para comenzar"
         
         if not args:
@@ -463,12 +443,10 @@ Para recibir tu código de 8 dígitos
         """
     
     def comando_codigo(self, usuario):
-        codigo = ''.join([str(random.randint(0, 9)) for _ in range(8)])
-        self.codigos_pendientes[usuario] = {
-            'codigo': codigo,
-            'fecha': datetime.now(),
-            'intentos': 0
-        }
+        codigo = self.sistema_vinculacion.generar_codigo(usuario)
+        
+        if not codigo:
+            return "❌ *Error al generar código*"
         
         logger.info(f"Código para {usuario}: {codigo}")
         
@@ -493,52 +471,17 @@ Escribe: {PREFIX}verificar {codigo}
         
         codigo_ingresado = args[0].replace(' ', '')
         
-        if usuario not in self.codigos_pendientes:
-            return "❌ *No hay código pendiente*\n\nEscribe .codigo para recibir uno"
+        resultado = self.sistema_vinculacion.verificar_codigo(usuario, codigo_ingresado)
         
-        datos = self.codigos_pendientes[usuario]
-        
-        # Verificar expiración
-        if datetime.now() - datos['fecha'] > timedelta(minutes=5):
-            del self.codigos_pendientes[usuario]
-            return "⏰ *Código expirado*\n\nEscribe .codigo para uno nuevo"
-        
-        # Verificar intentos
-        if datos['intentos'] >= 3:
-            del self.codigos_pendientes[usuario]
-            return "❌ *Demasiados intentos*\n\nEscribe .codigo para uno nuevo"
-        
-        # Verificar código
-        if codigo_ingresado == datos['codigo']:
-            self.vinculados.add(usuario)
-            self.guardar_vinculados()
-            del self.codigos_pendientes[usuario]
-            
-            return f"""
-╭━━━━━━━━━━━━━━━━━━━━━━━━━━━╮
-┃ ✅ *¡VINCULACIÓN EXITOSA!* ✅ ┃
-╰━━━━━━━━━━━━━━━━━━━━━━━━━━━╯
-
-🎉 *¡Tu número ha sido vinculado!*
-
-📱 *Número:* {usuario}
-
-Escribe {PREFIX}menu para comenzar
-            """
-        else:
-            self.codigos_pendientes[usuario]['intentos'] += 1
-            intentos_restantes = 3 - datos['intentos'] - 1
-            return f"❌ *Código incorrecto*\n\nTe quedan {intentos_restantes} intentos"
+        return resultado['mensaje']
     
     def comando_estado(self, usuario):
-        if usuario in self.vinculados:
+        if self.sistema_vinculacion.esta_vinculado(usuario):
             return f"✅ *Ya estás vinculado*\n\nEscribe {PREFIX}menu para comenzar"
         return f"❌ *No estás vinculado*\n\nEscribe {PREFIX}vincular [tu_número]"
     
     def comando_desvincular(self, usuario):
-        if usuario in self.vinculados:
-            self.vinculados.remove(usuario)
-            self.guardar_vinculados()
+        if self.sistema_vinculacion.desvincular(usuario):
             return "✅ *Has sido desvinculado*"
         return "❌ *No estabas vinculado*"
     
@@ -557,6 +500,7 @@ Escribe {PREFIX}menu para comenzar
             'quien te creo': f'Fui creado por un desarrollador genial 💻\n\nEscribe *.info* para conocerme mejor.',
             'owner': f'Mi dueño es +{OWNER_NUMBER} 👑',
             'menu': f'Escribe *{PREFIX}menu* para ver todos los comandos disponibles.',
+            'comandos': f'Escribe *{PREFIX}menu* para ver los 101 comandos disponibles.',
         }
         
         for clave, respuesta in respuestas.items():
