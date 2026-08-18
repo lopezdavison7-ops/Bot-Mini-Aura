@@ -1,8 +1,8 @@
 import asyncio
 import random
 import logging
-import qrcode
 from datetime import datetime
+from flask import Flask, render_template_string
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger('MINI-AURA')
@@ -17,12 +17,54 @@ NUMERO_VINCULAR = "50576641902"
 OWNER_NUMBER = "50578391933"
 VERSION = "4.0.0"
 
+app = Flask(__name__)
+qr_url_global = ""
+
+HTML_TEMPLATE = """
+<!DOCTYPE html>
+<html>
+<head>
+    <title>BOT MINI AURA - QR</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { background: #1a1a1a; color: white; font-family: Arial; text-align: center; padding: 20px; }
+        .qr-box { background: white; padding: 20px; display: inline-block; border-radius: 10px; margin: 20px; }
+        img { width: 300px; height: 300px; }
+        h1 { color: #25D366; }
+        .info { margin: 20px; }
+        .btn { background: #25D366; color: white; padding: 15px 30px; border-radius: 5px; text-decoration: none; display: inline-block; margin: 10px; }
+    </style>
+</head>
+<body>
+    <h1>🤖 BOT MINI AURA</h1>
+    <p>📱 Número a vincular: +{{ numero }}</p>
+    <div class="qr-box">
+        <img src="{{ qr_data }}" alt="QR">
+    </div>
+    <p>📱 Abre WhatsApp en tu teléfono</p>
+    <p>→ Ajustes → Dispositivos vinculados</p>
+    <p>→ Vincular dispositivo</p>
+    <p>→ Escanea el QR</p>
+    <p style="color: yellow;">⚠️ El QR expira en 60 segundos</p>
+</body>
+</html>
+"""
+
+@app.route('/qr')
+def mostrar_qr():
+    global qr_url_global
+    if qr_url_global:
+        return render_template_string(HTML_TEMPLATE, qr_data=qr_url_global, numero=NUMERO_VINCULAR)
+    return "QR no disponible aún. Espera..."
+
 class BotMiniAura:
     def __init__(self):
         self.sock = None
         self.mensajes_procesados = set()
 
     async def iniciar(self):
+        global qr_url_global
+        
         config = default_connection_config()
         config['auth'] = {'creds': init_auth_creds(), 'keys': {}}
         config['browser'] = Browsers.macOS('Safari')
@@ -32,33 +74,21 @@ class BotMiniAura:
         ev = self.sock['ev']
 
         async def on_conn(update):
+            global qr_url_global
             if update.get('qr'):
-                url_qr = update['qr']
+                qr_url_global = update['qr']
                 print("\n" + "=" * 50)
-                print("📱 ESCANEA EL QR PARA VINCULAR")
-                print(f"Número: +{NUMERO_VINCULAR}")
+                print("📱 ESCANEA EL QR AQUÍ:")
                 print("=" * 50 + "\n")
-                
-                # Generar QR real como imagen
-                try:
-                    qr = qrcode.QRCode(version=1, box_size=10, border=2)
-                    qr.add_data(url_qr)
-                    qr.make(fit=True)
-                    img = qr.make_image(fill_color="black", back_color="white")
-                    img.save("qr.png")
-                    print("✅ QR generado como: qr.png")
-                    print("📱 Descarga el archivo qr.png y escanéalo")
-                except:
-                    pass
-                
-                print("\n🔗 O usa este enlace en tu navegador:")
-                print(url_qr)
+                print(f"http://localhost:5000/qr")
+                print("\n" + "=" * 50)
+                print("Abre esa URL en tu navegador")
                 print("=" * 50 + "\n")
                 
             if update.get('connection') == 'open':
+                qr_url_global = ""
                 print("\n" + "=" * 50)
                 print("✅ ¡BOT MINI AURA CONECTADO!")
-                print(f"📱 Número vinculado: +{NUMERO_VINCULAR}")
                 print(f"👑 Owner: +{OWNER_NUMBER}")
                 print("=" * 50 + "\n")
 
@@ -70,8 +100,6 @@ class BotMiniAura:
 
         print("\n" + "=" * 50)
         print("🤖 BOT MINI AURA")
-        print("=" * 50)
-        print("Iniciando conexión...")
         print("=" * 50 + "\n")
 
         await asyncio.Event().wait()
@@ -88,8 +116,6 @@ class BotMiniAura:
             if texto in self.mensajes_procesados:
                 return
             self.mensajes_procesados.add(texto)
-
-            logger.info(f"Mensaje de {remitente}: {texto[:50]}")
 
             if texto.startswith(PREFIX):
                 comando = texto[len(PREFIX):].split(' ')[0].lower()
@@ -199,4 +225,12 @@ class BotMiniAura:
 
 if __name__ == '__main__':
     bot = BotMiniAura()
+    
+    # Ejecutar Flask en un hilo
+    import threading
+    flask_thread = threading.Thread(target=lambda: app.run(host='0.0.0.0', port=5000, debug=False))
+    flask_thread.daemon = True
+    flask_thread.start()
+    
+    # Ejecutar bot
     asyncio.run(bot.iniciar())
