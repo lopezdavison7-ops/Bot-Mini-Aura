@@ -1,9 +1,7 @@
 import asyncio
 import random
-import json
 import logging
 from datetime import datetime, timedelta
-from pathlib import Path
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger('MINI-AURA')
@@ -21,6 +19,7 @@ class BotMiniAura:
     def __init__(self):
         self.sock = None
         self.mensajes_procesados = set()
+        self.bot_vinculado = False
 
     async def iniciar(self):
         config = default_connection_config()
@@ -34,11 +33,12 @@ class BotMiniAura:
         async def on_conn(update):
             if update.get('qr'):
                 print("\n" + "=" * 50)
-                print("📱 ESCANEA EL QR EN WHATSAPP > DISPOSITIVOS VINCULADOS")
+                print("🔗 *OPCIÓN 2: ESCANEA ESTE QR*")
                 print("=" * 50 + "\n")
                 print(update['qr'])
+                print("\n" + "=" * 50)
             if update.get('connection') == 'open':
-                print("\n✅ ¡BOT MINI AURA CONECTADO!")
+                print("\n✅ ¡BOT CONECTADO!")
                 print(f"👑 Owner: +{OWNER_NUMBER}")
                 print("=" * 50 + "\n")
 
@@ -47,6 +47,16 @@ class BotMiniAura:
 
         ev.on('connection.update', lambda u: asyncio.ensure_future(on_conn(u)))
         ev.on('messages.upsert', lambda m: asyncio.ensure_future(on_message(m)))
+
+        print("\n" + "=" * 50)
+        print("🤖 BOT MINI AURA")
+        print("=" * 50)
+        print("\n¿Cómo deseas vincular el bot?\n")
+        print("1️⃣ Código de 8 dígitos")
+        print("   Escribe: 1")
+        print("2️⃣ QR")
+        print("   Escribe: 2")
+        print("=" * 50 + "\n")
 
         await asyncio.Event().wait()
 
@@ -64,6 +74,15 @@ class BotMiniAura:
             self.mensajes_procesados.add(texto)
 
             logger.info(f"Mensaje de {remitente}: {texto[:50]}")
+
+            if texto == '1' and not self.bot_vinculado:
+                print("\n📱 Escribe el número a vincular:")
+                print("Ejemplo: 50578391933\n")
+                return
+
+            if texto == '2' and not self.bot_vinculado:
+                print("\n📱 ESCANEA EL QR QUE APARECE ARRIBA\n")
+                return
 
             if texto.startswith(PREFIX):
                 comando = texto[len(PREFIX):].split(' ')[0].lower()
