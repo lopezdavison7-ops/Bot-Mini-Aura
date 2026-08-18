@@ -1,6 +1,7 @@
 import asyncio
 import random
 import logging
+import qrcode
 from datetime import datetime
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -32,17 +33,28 @@ class BotMiniAura:
 
         async def on_conn(update):
             if update.get('qr'):
+                url_qr = update['qr']
                 print("\n" + "=" * 50)
                 print("📱 ESCANEA EL QR PARA VINCULAR")
                 print(f"Número: +{NUMERO_VINCULAR}")
                 print("=" * 50 + "\n")
-                print(update['qr'])
-                print("\n" + "=" * 50)
-                print("Abre WhatsApp en tu teléfono")
-                print("→ Ajustes → Dispositivos vinculados")
-                print("→ Vincular dispositivo")
-                print("→ Escanea el QR de arriba")
+                
+                # Generar QR real como imagen
+                try:
+                    qr = qrcode.QRCode(version=1, box_size=10, border=2)
+                    qr.add_data(url_qr)
+                    qr.make(fit=True)
+                    img = qr.make_image(fill_color="black", back_color="white")
+                    img.save("qr.png")
+                    print("✅ QR generado como: qr.png")
+                    print("📱 Descarga el archivo qr.png y escanéalo")
+                except:
+                    pass
+                
+                print("\n🔗 O usa este enlace en tu navegador:")
+                print(url_qr)
                 print("=" * 50 + "\n")
+                
             if update.get('connection') == 'open':
                 print("\n" + "=" * 50)
                 print("✅ ¡BOT MINI AURA CONECTADO!")
