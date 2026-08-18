@@ -2,7 +2,7 @@
 
 """
 ⚙️ Configuración de BOT MINI AURA
-Version: 2.0.0
+Version: 3.0.0
 """
 
 import os
@@ -14,18 +14,17 @@ load_dotenv()
 # ==================== IDENTIDAD DEL BOT ====================
 
 NOMBRE_BOT = "🤖 BOT MINI AURA"
-VERSION = "2.0.0"
-DESARROLLADOR = "Tu Nombre"
+VERSION = "3.0.0"
+DESARROLLADOR = "Davison López"
 
 # ==================== OWNER ====================
 
 OWNER_NUMBER = "50578391933"
-OWNER_NAME = "Dueño del Bot"
+OWNER_NAME = "Davison"
 
 # Lista de owners autorizados
 OWNERS = [
     "50578391933",  # Owner principal
-    # Agrega más números aquí
 ]
 
 # ==================== PREFIJO ====================
@@ -41,8 +40,7 @@ DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
 VINCULACION = {
     'tiempo_espera_codigo': 300,  # 5 minutos
     'intentos_maximos': 3,
-    'usar_qr': True,
-    'usar_codigo': True,
+    'longitud_codigo': 8,
 }
 
 # ==================== ECONOMÍA ====================
@@ -62,17 +60,14 @@ COSTO_JUEGO = 5
 # ==================== APIs ====================
 
 API_KEYS = {
+    'weather': os.getenv('WEATHER_API_KEY', ''),
     'youtube': os.getenv('YOUTUBE_API_KEY', ''),
     'tiktok': os.getenv('TIKTOK_API_KEY', ''),
-    'weather': os.getenv('WEATHER_API_KEY', ''),
-    'twilio_sid': os.getenv('TWILIO_SID', ''),
-    'twilio_token': os.getenv('TWILIO_TOKEN', ''),
 }
 
 # ==================== PATHS ====================
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATA_DIR = os.path.join(BASE_DIR, 'src', 'data')
-DATABASE_PATH = os.path.join(DATA_DIR, 'database', 'bot.db')
-MEDIA_PATH = os.path.join(DATA_DIR, 'media')
-SESSION_PATH = os.path.join(BASE_DIR, 'src', 'sessions')
+DATA_DIR = os.path.join(BASE_DIR, 'data')
+DATABASE_PATH = os.path.join(DATA_DIR, 'bot.db')
+VINCULADOS_PATH = os.path.join(DATA_DIR, 'vinculados.json')
