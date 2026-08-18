@@ -1,72 +1,120 @@
+<div align="center">
+
 # 🤖 BOT MINI AURA
 
-<div align="center">
-
-![BOT MINI AURA](https://img.shields.io/badge/Versi%C3%B3n-2.0.0-blue?style=for-the-badge)
+![Versión](https://img.shields.io/badge/Versión-4.0.0-blue?style=for-the-badge)
 ![Python](https://img.shields.io/badge/Python-3.9+-green?style=for-the-badge&logo=python&logoColor=white)
-![Flask](https://img.shields.io/badge/Flask-2.3.2-red?style=for-the-badge&logo=flask&logoColor=white)
-![WhatsApp](https://img.shields.io/badge/WhatsApp-25D366?style=for-the-badge&logo=whatsapp&logoColor=white)
-![Twilio](https://img.shields.io/badge/Twilio-F22F46?style=for-the-badge&logo=twilio&logoColor=white)
-![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)
-![Estrellas](https://img.shields.io/github/stars/lopezdavison7-ops/Bot-Mini-Aura?style=for-the-badge)
+![Baileys](https://img.shields.io/badge/Baileys-WhatsApp-orange?style=for-the-badge)
+![Licencia](https://img.shields.io/badge/Licencia-MIT-yellow?style=for-the-badge)
+![Estado](https://img.shields.io/badge/Estado-Activo-brightgreen?style=for-the-badge)
 
-**Bot de WhatsApp multi-propósito con economía, juegos, utilidades y más**
+**Bot de WhatsApp multi-propósito con 130+ comandos**
 
-[🌐 Sitio Web](https://github.com/lopezdavison7-ops/Bot-Mini-Aura) •
-[📖 Documentación](#-documentación) •
-[🐛 Reportar Bug](https://github.com/lopezdavison7-ops/Bot-Mini-Aura/issues) •
-[⭐ Dar Estrella](https://github.com/lopezdavison7-ops/Bot-Mini-Aura/stargazers)
+[🇳🇮 Hecho en Nicaragua](https://github.com/lopezdavison7-ops) | [📖 Documentación](#-documentación) | [🚀 Instalación](#-instalación)
 
 </div>
 
 ---
 
-## ✨ Características Principales
+## ✨ Características
 
-<div align="center">
+### 💰 Sistema de Economía
+- Monedas y niveles
+- Sistema de trabajo
+- Banco personal
+- Robos y apuestas
+- Ranking de usuarios
+- Transferencias
 
-| 💰 Economía | 🎮 Juegos | 🛠️ Utilidades |
-|-------------|-----------|---------------|
-| Monedas | Dado | Calculadora |
-| Trabajo | Moneda | Clima |
-| Ranking | PPT | Traductor |
-| Robos | Ahorcado | Contraseñas |
-| Banco | Trivia | Fecha/Hora |
-| Transferencias | Ruleta | Codificador |
+### 🎮 Juegos
+- Dado, Moneda, PPT
+- Ahorcado, Trivia
+- Ruleta rusa, Lotería
 
-</div>
+### 🛠️ Utilidades (15+)
+- Calculadora, Clima
+- Generador de contraseñas
+- Convertidor binario, hex, base64
+- Y mucho más...
 
-### 🎯 Más de 70 comandos disponibles
+### 🎭 Diversión
+- Datos curiosos, Chistes
+- Frases motivacionales
+- Piropos, Bola mágica
+- Y más...
 
-- ⚡ **5 Comandos Generales**
-- 🔗 **6 Comandos de Vinculación**
-- 💰 **7 Comandos de Economía**
-- 🎮 **7 Juegos Interactivos**
-- 🛠️ **15 Utilidades**
-- 📥 **5 Descargas**
-- 🎭 **10 Comandos de Diversión**
-- 👑 **13 Comandos de Owner**
-- 👮 **6 Comandos de Admin**
+### 💎 Comandos Exclusivos
+- Predecir futuro
+- Test de personalidad
+- Horóscopo diario
+- Y más...
+
+### 👑 Owner
+- Broadcast, Estadísticas
+- Gestión de usuarios
+- Sistema de baneo
+
+### 🛡️ Anti-Spam
+- Protección automática
+- Sistema de advertencias
+- Control de spam
 
 ---
 
-## 🚀 Instalación Rápida
+## 📊 Total de Comandos: 130+
+
+| Categoría | Comandos |
+|-----------|----------|
+| ⚡ Generales | 5 |
+| 🔗 Vinculación | 6 |
+| 💰 Economía | 7 |
+| 🎮 Juegos | 7 |
+| 🛠️ Utilidades | 16 |
+| 🎭 Diversión | 11 |
+| 💎 Exclusivos | 15 |
+| 🔥 Premium | 12 |
+| 👑 Owner | 14 |
+| 👮 Admin | 6 |
+| 🛡️ Anti-Spam | 4 |
+| **TOTAL** | **130+** |
+
+---
+
+## 🚀 Instalación
 
 ### 📱 En Termux (Android)
 
 ```bash
-# Actualizar paquetes
 pkg update && pkg upgrade -y
-
-# Instalar dependencias
 pkg install python git -y
-
-# Clonar repositorio
 git clone https://github.com/lopezdavison7-ops/Bot-Mini-Aura.git
 cd Bot-Mini-Aura
+pip install -r requirements.txt
+python main.py
 
-# Dar permisos de ejecución
-chmod +x deploy/start.sh
+En hidencloud ☁️
+# 1. Crear cuenta en HidenCloud
+# 2. Crear nuevo servidor
+# 3. Seleccionar Python
 
-# Iniciar bot
-./deploy/start.sh
+# 4. En la terminal:
+git clone https://github.com/lopezdavison7-ops/Bot-Mini-Aura.git
+cd Bot-Mini-Aura
+pip install -r requirements.txt
+python main.py
+
+💻en Windows 
+ 
+git clone https://github.com/lopezdavison7-ops/Bot-Mini-Aura.git
+cd Bot-Mini-Aura
+pip install -r requirements.txt
+python main.py
+
+🐧en Linux VPS
+ 
+sudo apt update && sudo apt upgrade -y
+sudo apt install python3 python3-pip git -y
+git clone https://github.com/lopezdavison7-ops/Bot-Mini-Aura.git
+cd Bot-Mini-Aura
+pip3 install -r requirements.txt
+python3 main.py
