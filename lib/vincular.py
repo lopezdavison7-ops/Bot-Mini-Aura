@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-🔗 Sistema de Vinculación REAL para BOT MINI AURA
+🔗 Sistema de Vinculación para BOT MINI AURA
 Versión: 3.0.0
 """
 
@@ -15,65 +15,44 @@ logger = logging.getLogger(__name__)
 
 class SistemaVinculacion:
     def __init__(self):
-        self.archivo_vinculados = Path('src/data/json/vinculados.json')
-        self.archivo_codigos = Path('src/data/json/codigos_pendientes.json')
+        self.archivo_vinculados = Path('data/vinculados.json')
         self.archivo_vinculados.parent.mkdir(parents=True, exist_ok=True)
-        
-        self.vinculados = self.cargar_json(self.archivo_vinculados)
-        self.codigos = self.cargar_json(self.archivo_codigos)
+        self.vinculados = self.cargar_vinculados()
         self.codigos_activos = {}
         
-    def cargar_json(self, archivo):
-        """Cargar archivo JSON"""
+    def cargar_vinculados(self):
+        """Cargar usuarios vinculados desde JSON"""
         try:
-            if archivo.exists():
-                with open(archivo, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-            return {}
+            if self.archivo_vinculados.exists():
+                with open(self.archivo_vinculados, 'r', encoding='utf-8') as f:
+                    return set(json.load(f))
+            return set()
         except Exception as e:
-            logger.error(f"Error cargando JSON: {e}")
-            return {}
+            logger.error(f"Error cargando vinculados: {e}")
+            return set()
     
-    def guardar_json(self, archivo, datos):
-        """Guardar archivo JSON"""
+    def guardar_vinculados(self):
+        """Guardar usuarios vinculados en JSON"""
         try:
-            with open(archivo, 'w', encoding='utf-8') as f:
-                json.dump(datos, f, indent=2, ensure_ascii=False)
+            with open(self.archivo_vinculados, 'w', encoding='utf-8') as f:
+                json.dump(list(self.vinculados), f, indent=2)
             return True
         except Exception as e:
-            logger.error(f"Error guardando JSON: {e}")
+            logger.error(f"Error guardando vinculados: {e}")
             return False
     
-    def guardar_numero_pendiente(self, usuario, numero):
-        """Guardar número pendiente"""
+    def generar_codigo(self, usuario):
+        """Generar código de 8 dígitos"""
         try:
-            self.vinculados[usuario] = {
-                'numero': numero,
-                'estado': 'pendiente',
-                'fecha': datetime.now().isoformat()
-            }
-            self.guardar_json(self.archivo_vinculados, self.vinculados)
-            return True
-        except Exception as e:
-            logger.error(f"Error guardando pendiente: {e}")
-            return False
-    
-    def generar_codigo(self, usuario, codigo=None):
-        """Generar o guardar código de 8 dígitos"""
-        try:
-            if not codigo:
-                codigo = ''.join([str(random.randint(0, 9)) for _ in range(8)])
+            codigo = ''.join([str(random.randint(0, 9)) for _ in range(8)])
             
             self.codigos_activos[usuario] = {
                 'codigo': codigo,
-                'fecha_creacion': datetime.now().isoformat(),
+                'fecha_creacion': datetime.now(),
                 'intentos': 0
             }
             
-            # Guardar en archivo
-            self.codigos[usuario] = self.codigos_activos[usuario]
-            self.guardar_json(self.archivo_codigos, self.codigos)
-            
+            logger.info(f"Código generado para {usuario}: {codigo}")
             return codigo
         except Exception as e:
             logger.error(f"Error generando código: {e}")
@@ -82,26 +61,24 @@ class SistemaVinculacion:
     def verificar_codigo(self, usuario, codigo_ingresado):
         """Verificar código de 8 dígitos"""
         try:
-            # Verificar si hay código pendiente
             if usuario not in self.codigos_activos:
                 return {
                     'valido': False,
                     'mensaje': '❌ *No hay código pendiente*\n\nEscribe .codigo para recibir uno.'
                 }
             
-            datos_codigo = self.codigos_activos[usuario]
+            datos = self.codigos_activos[usuario]
             
             # Verificar expiración (5 minutos)
-            fecha_creacion = datetime.fromisoformat(datos_codigo['fecha_creacion'])
-            if datetime.now() - fecha_creacion > timedelta(minutes=5):
+            if datetime.now() - datos['fecha_creacion'] > timedelta(minutes=5):
                 del self.codigos_activos[usuario]
                 return {
                     'valido': False,
                     'mensaje': '⏰ *Código expirado*\n\nEscribe .codigo para recibir uno nuevo.'
                 }
             
-            # Verificar intentos
-            if datos_codigo['intentos'] >= 3:
+            # Verificar intentos máximos
+            if datos['intentos'] >= 3:
                 del self.codigos_activos[usuario]
                 return {
                     'valido': False,
@@ -109,16 +86,10 @@ class SistemaVinculacion:
                 }
             
             # Verificar código
-            if codigo_ingresado == datos_codigo['codigo']:
+            if codigo_ingresado == datos['codigo']:
                 # Vincular exitosamente
-                self.vinculados[usuario] = {
-                    'numero': usuario,
-                    'estado': 'vinculado',
-                    'fecha_vinculacion': datetime.now().isoformat()
-                }
-                self.guardar_json(self.archivo_vinculados, self.vinculados)
-                
-                # Limpiar código
+                self.vinculados.add(usuario)
+                self.guardar_vinculados()
                 del self.codigos_activos[usuario]
                 
                 return {
@@ -156,5 +127,21 @@ Escribe .menu para comenzar
             }
     
     def esta_vinculado(self, usuario):
-        """Verificar si está vinculado"""
-        return usuario in self.vinculados and self.vinculados[usuario].get('estado') == 'vinculado'
+        """Verificar si un usuario está vinculado"""
+        return usuario in self.vinculados
+    
+    def desvincular(self, usuario):
+        """Desvincular un usuario"""
+        try:
+            if usuario in self.vinculados:
+                self.vinculados.remove(usuario)
+                self.guardar_vinculados()
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Error desvinculando: {e}")
+            return False
+    
+    def obtener_total_vinculados(self):
+        """Obtener total de usuarios vinculados"""
+        return len(self.vinculados)
