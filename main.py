@@ -31,6 +31,18 @@ class BotMiniAura:
         ev = self.sock['ev']
 
         async def on_conn(update):
+            if update.get('qr'):
+                print("\n" + "=" * 50)
+                print("📱 ESCANEA EL QR PARA VINCULAR")
+                print(f"Número: +{NUMERO_VINCULAR}")
+                print("=" * 50 + "\n")
+                print(update['qr'])
+                print("\n" + "=" * 50)
+                print("Abre WhatsApp en tu teléfono")
+                print("→ Ajustes → Dispositivos vinculados")
+                print("→ Vincular dispositivo")
+                print("→ Escanea el QR de arriba")
+                print("=" * 50 + "\n")
             if update.get('connection') == 'open':
                 print("\n" + "=" * 50)
                 print("✅ ¡BOT MINI AURA CONECTADO!")
@@ -44,19 +56,10 @@ class BotMiniAura:
         ev.on('connection.update', lambda u: asyncio.ensure_future(on_conn(u)))
         ev.on('messages.upsert', lambda m: asyncio.ensure_future(on_message(m)))
 
-        codigo = ''.join([str(random.randint(0, 9)) for _ in range(8)])
-        
         print("\n" + "=" * 50)
         print("🤖 BOT MINI AURA")
         print("=" * 50)
-        print(f"\n📱 Número a vincular: +{NUMERO_VINCULAR}")
-        print(f"\n🔢 CÓDIGO DE VINCULACIÓN:")
-        print(f"\n*{codigo[0:4]} {codigo[4:8]}*")
-        print("\n📱 Para vincular:")
-        print("Abre WhatsApp")
-        print("→ Ajustes → Dispositivos vinculados")
-        print("→ Vincular dispositivo")
-        print(f"→ Ingresa el código: {codigo}")
+        print("Iniciando conexión...")
         print("=" * 50 + "\n")
 
         await asyncio.Event().wait()
