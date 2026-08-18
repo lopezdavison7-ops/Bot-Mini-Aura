@@ -2,17 +2,17 @@
 
 """
 👮 Comandos de Administración para BOT MINI AURA
-Version: 2.0.0
+Versión: 4.0.0
 """
 
-from src.lib.database import Database
-from config.settings import PREFIX
+from config.settings import PREFIX, OWNER_NUMBER
 
-db = Database()
-
-def expulsar_usuario(usuario, args):
+def kick_usuario(usuario, args):
     """Expulsar usuario del grupo"""
     try:
+        if usuario != OWNER_NUMBER:
+            return "❌ *Solo el owner puede usar este comando*"
+        
         if not args:
             return f"❌ *Uso:* {PREFIX}kick [número]\n\nEjemplo: {PREFIX}kick 50512345678"
         
@@ -23,16 +23,19 @@ def expulsar_usuario(usuario, args):
 ┃   👢 *USUARIO EXPULSADO* 👢   ┃
 ╰━━━━━━━━━━━━━━━━━━━━━━━━━━━╯
 
-✅ +{objetivo} ha sido expulsado
+✅ +{objetivo} ha sido expulsado del grupo
 
-📝 *Nota:* Esta función requiere permisos de admin
+👮 *Ejecutado por:* +{usuario}
         """
     except Exception as e:
         return f"❌ *Error al expulsar:* {e}"
 
-def banear_usuario(usuario, args):
-    """Banear usuario"""
+def ban_usuario(usuario, args):
+    """Banear usuario del grupo"""
     try:
+        if usuario != OWNER_NUMBER:
+            return "❌ *Solo el owner puede usar este comando*"
+        
         if not args:
             return f"❌ *Uso:* {PREFIX}ban [número]\n\nEjemplo: {PREFIX}ban 50512345678"
         
@@ -43,9 +46,9 @@ def banear_usuario(usuario, args):
 ┃   🔨 *USUARIO BANEADO* 🔨   ┃
 ╰━━━━━━━━━━━━━━━━━━━━━━━━━━━╯
 
-✅ +{objetivo} ha sido baneado
+✅ +{objetivo} ha sido baneado del grupo
 
-📝 *Nota:* Esta función requiere permisos de admin
+👮 *Ejecutado por:* +{usuario}
         """
     except Exception as e:
         return f"❌ *Error al banear:* {e}"
@@ -53,8 +56,11 @@ def banear_usuario(usuario, args):
 def promover_usuario(usuario, args):
     """Promover usuario a admin"""
     try:
+        if usuario != OWNER_NUMBER:
+            return "❌ *Solo el owner puede usar este comando*"
+        
         if not args:
-            return f"❌ *Uso:* {PREFIX}promover [número]"
+            return f"❌ *Uso:* {PREFIX}promover [número]\n\nEjemplo: {PREFIX}promover 50512345678"
         
         objetivo = args[0]
         
@@ -63,16 +69,21 @@ def promover_usuario(usuario, args):
 ┃  ⬆️ *USUARIO PROMOVIDO* ⬆️  ┃
 ╰━━━━━━━━━━━━━━━━━━━━━━━━━━━╯
 
-✅ +{objetivo} ahora es admin
+✅ +{objetivo} ahora es admin del grupo
+
+👮 *Ejecutado por:* +{usuario}
         """
     except Exception as e:
         return f"❌ *Error al promover:* {e}"
 
-def degrada_usuario(usuario, args):
-    """Degradar admin"""
+def demover_usuario(usuario, args):
+    """Quitar admin a usuario"""
     try:
+        if usuario != OWNER_NUMBER:
+            return "❌ *Solo el owner puede usar este comando*"
+        
         if not args:
-            return f"❌ *Uso:* {PREFIX}demover [número]"
+            return f"❌ *Uso:* {PREFIX}demover [número]\n\nEjemplo: {PREFIX}demover 50512345678"
         
         objetivo = args[0]
         
@@ -81,7 +92,9 @@ def degrada_usuario(usuario, args):
 ┃  ⬇️ *USUARIO DEGRADADO* ⬇️  ┃
 ╰━━━━━━━━━━━━━━━━━━━━━━━━━━━╯
 
-✅ +{objetivo} ya no es admin
+✅ +{objetivo} ya no es admin del grupo
+
+👮 *Ejecutado por:* +{usuario}
         """
     except Exception as e:
         return f"❌ *Error al degradar:* {e}"
@@ -95,14 +108,15 @@ def info_grupo(usuario):
 ╰━━━━━━━━━━━━━━━━━━━━━━━━━━━╯
 
 📱 *Grupo actual:* WhatsApp
-👤 *Tu número:* {usuario}
+👤 *Tu número:* +{usuario}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 💡 *Comandos de admin:*
 ├─ {PREFIX}kick - Expulsar
 ├─ {PREFIX}ban - Banear
 ├─ {PREFIX}promover - Hacer admin
-└─ {PREFIX}demover - Quitar admin
+├─ {PREFIX}demover - Quitar admin
+└─ {PREFIX}bienvenida - Configurar bienvenida
         """
     except Exception as e:
         return f"❌ *Error:* {e}"
@@ -110,8 +124,20 @@ def info_grupo(usuario):
 def configurar_bienvenida(usuario, args):
     """Configurar mensaje de bienvenida"""
     try:
+        if usuario != OWNER_NUMBER:
+            return "❌ *Solo el owner puede usar este comando*"
+        
         if not args:
-            return f"❌ *Uso:* {PREFIX}bienvenida [mensaje]\n\nUsa {{usuario}} para mencionar al nuevo miembro"
+            return f"""
+❌ *Uso:* {PREFIX}bienvenida [mensaje]
+
+📝 *Variables disponibles:*
+├─ {{usuario}} - Menciona al usuario
+├─ {{grupo}} - Nombre del grupo
+└─ {{fecha}} - Fecha actual
+
+📌 *Ejemplo:* {PREFIX}bienvenida ¡Hola {{usuario}}! Bienvenido a {{grupo}}
+            """
         
         mensaje = ' '.join(args)
         
@@ -122,7 +148,7 @@ def configurar_bienvenida(usuario, args):
 
 ✅ *Mensaje:* {mensaje}
 
-💡 *Variables disponibles:*
+💡 *Variables usadas:*
 ├─ {{usuario}} - Menciona al usuario
 ├─ {{grupo}} - Nombre del grupo
 └─ {{fecha}} - Fecha actual
