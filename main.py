@@ -20,28 +20,7 @@ VERSION = "4.0.0"
 class BotMiniAura:
     def __init__(self):
         self.sock = None
-        self.vinculados = self.cargar_vinculados()
-        self.codigos = {}
         self.mensajes_procesados = set()
-
-    def cargar_vinculados(self):
-        try:
-            archivo = Path('data/vinculados.json')
-            if archivo.exists():
-                with open(archivo, 'r') as f:
-                    return set(json.load(f))
-            return set()
-        except:
-            return set()
-
-    def guardar_vinculados(self):
-        try:
-            archivo = Path('data/vinculados.json')
-            archivo.parent.mkdir(parents=True, exist_ok=True)
-            with open(archivo, 'w') as f:
-                json.dump(list(self.vinculados), f, indent=2)
-        except:
-            pass
 
     async def iniciar(self):
         config = default_connection_config()
@@ -61,7 +40,6 @@ class BotMiniAura:
             if update.get('connection') == 'open':
                 print("\n✅ ¡BOT MINI AURA CONECTADO!")
                 print(f"👑 Owner: +{OWNER_NUMBER}")
-                print(f"📊 Versión: {VERSION}")
                 print("=" * 50 + "\n")
 
         async def on_message(message):
@@ -102,28 +80,14 @@ class BotMiniAura:
 
     async def ejecutar_comando(self, comando, args, remitente, mencion):
         try:
-            if comando in ['vincular', 'link']:
-                return self.cmd_vincular(args)
-            elif comando in ['codigo', 'code']:
-                return self.cmd_codigo(remitente)
-            elif comando in ['verificar', 'verify']:
-                return self.cmd_verificar(remitente, args)
-            elif comando in ['estado', 'status']:
-                return self.cmd_estado(remitente)
-            elif comando in ['desvincular', 'unlink']:
-                return self.cmd_desvincular(remitente)
-
-            if remitente not in self.vinculados and remitente != OWNER_NUMBER:
-                return f"⚠️ *Hola {mencion}*\n\nDebes vincularte primero\n\n.vincular {OWNER_NUMBER}\n.codigo"
-
             if comando in ['menu', 'ayuda', 'help', 'start']:
                 return self.menu_principal(mencion)
             elif comando in ['ping', 'test']:
                 return "🏓 *Pong!* Bot activo"
             elif comando in ['info', 'bot']:
-                return f"🤖 *BOT MINI AURA*\n\n📊 Versión: {VERSION}\n👑 Owner: +{OWNER_NUMBER}\n🌐 País: Nicaragua 🇳🇮"
+                return f"🤖 *BOT MINI AURA*\n\n📊 Versión: {VERSION}\n👑 Owner: +{OWNER_NUMBER}"
             elif comando in ['owner', 'dueño']:
-                return f"👑 *OWNER*\n\n📱 Número: +{OWNER_NUMBER}\n🌐 País: Nicaragua 🇳🇮"
+                return f"👑 *OWNER*\n\n📱 Número: +{OWNER_NUMBER}"
             elif comando in ['dado', 'dice', 'roll']:
                 return f"🎲 *{mencion}*\n\nSacaste: *{random.randint(1, 6)}*"
             elif comando in ['moneda', 'coin', 'cara']:
@@ -203,49 +167,6 @@ class BotMiniAura:
         except Exception as e:
             logger.error(f"Error ejecutando comando: {e}")
             return "⚠️ Error interno"
-
-    def cmd_vincular(self, args):
-        if not args:
-            return "📱 *VINCULACIÓN*\n\nEscribe: .vincular 50578391933"
-        return f"✅ *Número guardado:* {args[0]}\n\nAhora escribe: .codigo"
-
-    def cmd_codigo(self, usuario):
-        codigo = ''.join([str(random.randint(0, 9)) for _ in range(8)])
-        self.codigos[usuario] = {'codigo': codigo, 'fecha': datetime.now(), 'intentos': 0}
-        return f"🔢 *CÓDIGO:* {codigo[0:4]} {codigo[4:8]}\n\nVerifica: .verificar {codigo}"
-
-    def cmd_verificar(self, usuario, args):
-        if not args:
-            return "❌ Uso: .verificar codigo"
-        codigo = args[0].replace(' ', '')
-        if usuario not in self.codigos:
-            return "❌ No hay código\n\nEscribe .codigo primero"
-        datos = self.codigos[usuario]
-        if datetime.now() - datos['fecha'] > timedelta(minutes=5):
-            del self.codigos[usuario]
-            return "⏰ Código expirado"
-        if datos['intentos'] >= 3:
-            del self.codigos[usuario]
-            return "❌ Demasiados intentos"
-        if codigo == datos['codigo']:
-            self.vinculados.add(usuario)
-            self.guardar_vinculados()
-            del self.codigos[usuario]
-            return "✅ *¡VINCULACIÓN EXITOSA!*\n\nEscribe .menu"
-        self.codigos[usuario]['intentos'] += 1
-        return f"❌ Código incorrecto\n\nTe quedan {3 - datos['intentos'] - 1} intentos"
-
-    def cmd_estado(self, usuario):
-        if usuario in self.vinculados:
-            return "✅ Estás vinculado"
-        return "❌ No estás vinculado\n\n.vincular 50578391933"
-
-    def cmd_desvincular(self, usuario):
-        if usuario in self.vinculados:
-            self.vinculados.remove(usuario)
-            self.guardar_vinculados()
-            return "✅ Desvinculado"
-        return "❌ No estabas vinculado"
 
     def procesar_normal(self, texto, mencion):
         t = texto.lower()
