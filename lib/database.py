@@ -2,7 +2,7 @@
 
 """
 🗄️ Base de Datos para BOT MINI AURA
-Version: 2.0.0
+Versión: 3.0.0
 """
 
 import sqlite3
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 class Database:
     def __init__(self):
-        self.db_path = Path('src/data/database/bot.db')
+        self.db_path = Path('data/bot.db')
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         
     def get_connection(self):
@@ -58,27 +58,6 @@ class Database:
                 )
             ''')
             
-            # Tabla de juegos
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS juegos (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    telefono TEXT,
-                    juego TEXT,
-                    estado TEXT,
-                    fecha DATETIME DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-            
-            # Tabla de baneados
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS baneados (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    telefono TEXT UNIQUE NOT NULL,
-                    razon TEXT,
-                    fecha DATETIME DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-            
             conn.commit()
             conn.close()
             logger.info("✅ Base de datos inicializada correctamente")
@@ -115,27 +94,13 @@ class Database:
             logger.error(f"Error obteniendo usuario: {e}")
             return None
     
-    def obtener_todos_usuarios(self, limite=50):
-        """Obtener todos los usuarios"""
-        try:
-            conn = self.get_connection()
-            cursor = conn.cursor()
-            cursor.execute('SELECT * FROM usuarios ORDER BY monedas DESC LIMIT ?', (limite,))
-            usuarios = cursor.fetchall()
-            conn.close()
-            return [dict(u) for u in usuarios]
-        except Exception as e:
-            logger.error(f"Error obteniendo usuarios: {e}")
-            return []
-    
     def actualizar_monedas(self, telefono, cantidad):
         """Actualizar monedas de usuario"""
         try:
             conn = self.get_connection()
             cursor = conn.cursor()
-            cursor.execute('''
-                UPDATE usuarios SET monedas = monedas + ? WHERE telefono = ?
-            ''', (cantidad, telefono))
+            cursor.execute('UPDATE usuarios SET monedas = monedas + ? WHERE telefono = ?',
+                          (cantidad, telefono))
             conn.commit()
             conn.close()
             return True
@@ -148,9 +113,8 @@ class Database:
         try:
             conn = self.get_connection()
             cursor = conn.cursor()
-            cursor.execute('''
-                UPDATE usuarios SET banco = banco + ? WHERE telefono = ?
-            ''', (cantidad, telefono))
+            cursor.execute('UPDATE usuarios SET banco = banco + ? WHERE telefono = ?',
+                          (cantidad, telefono))
             conn.commit()
             conn.close()
             return True
@@ -206,7 +170,7 @@ class Database:
             return False
     
     def obtener_ranking(self, limite=10):
-        """Obtener ranking"""
+        """Obtener ranking de usuarios"""
         try:
             conn = self.get_connection()
             cursor = conn.cursor()
@@ -235,66 +199,8 @@ class Database:
             logger.error(f"Error registrando actividad: {e}")
             return False
     
-    def guardar_juego(self, telefono, juego, estado):
-        """Guardar estado de juego"""
-        try:
-            conn = self.get_connection()
-            cursor = conn.cursor()
-            cursor.execute('INSERT INTO juegos (telefono, juego, estado) VALUES (?, ?, ?)',
-                          (telefono, juego, json.dumps(estado)))
-            conn.commit()
-            conn.close()
-            return True
-        except Exception as e:
-            logger.error(f"Error guardando juego: {e}")
-            return False
-    
-    def banear_usuario(self, telefono):
-        """Banear usuario"""
-        try:
-            conn = self.get_connection()
-            cursor = conn.cursor()
-            cursor.execute('UPDATE usuarios SET baneado = 1 WHERE telefono = ?', (telefono,))
-            cursor.execute('INSERT OR IGNORE INTO baneados (telefono) VALUES (?)', (telefono,))
-            conn.commit()
-            conn.close()
-            return True
-        except Exception as e:
-            logger.error(f"Error baneando usuario: {e}")
-            return False
-    
-    def desbanear_usuario(self, telefono):
-        """Desbanear usuario"""
-        try:
-            conn = self.get_connection()
-            cursor = conn.cursor()
-            cursor.execute('UPDATE usuarios SET baneado = 0 WHERE telefono = ?', (telefono,))
-            cursor.execute('DELETE FROM baneados WHERE telefono = ?', (telefono,))
-            conn.commit()
-            conn.close()
-            return True
-        except Exception as e:
-            logger.error(f"Error desbaneando usuario: {e}")
-            return False
-    
-    def reset_usuario(self, telefono):
-        """Resetear usuario"""
-        try:
-            conn = self.get_connection()
-            cursor = conn.cursor()
-            cursor.execute('''
-                UPDATE usuarios SET monedas = 100, banco = 0, nivel = 1, exp = 0
-                WHERE telefono = ?
-            ''', (telefono,))
-            conn.commit()
-            conn.close()
-            return True
-        except Exception as e:
-            logger.error(f"Error reseteando usuario: {e}")
-            return False
-    
     def contar_usuarios(self):
-        """Contar usuarios"""
+        """Contar usuarios registrados"""
         try:
             conn = self.get_connection()
             cursor = conn.cursor()
