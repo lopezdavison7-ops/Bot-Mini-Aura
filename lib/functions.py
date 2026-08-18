@@ -2,7 +2,7 @@
 
 """
 🔧 Funciones Auxiliares para BOT MINI AURA
-Version: 2.0.0
+Versión: 3.0.0
 """
 
 import re
@@ -104,3 +104,12 @@ def tiempo_transcurrido(fecha_inicio):
             return "hace un momento"
     except:
         return "tiempo desconocido"
+
+def limitar_texto(texto, maximo=100):
+    """Limitar longitud de texto"""
+    try:
+        if len(texto) > maximo:
+            return texto[:maximo] + "..."
+        return texto
+    except:
+        return texto
