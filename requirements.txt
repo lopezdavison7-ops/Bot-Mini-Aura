@@ -1,15 +1,5 @@
-# ==================== BOT MINI AURA ====================
-
-# WhatsApp
-baileys==0.1.0
-
-# Async
-asyncio==3.4.3
-
-# Utilidades
+selenium==4.15.0
+webdriver-manager==4.0.1
 python-dotenv==1.0.0
 requests==2.31.0
 python-dateutil==2.8.2
-
-# Base de datos
-sqlite3==0.0.0
