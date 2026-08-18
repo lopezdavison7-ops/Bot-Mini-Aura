@@ -1,1 +1,3 @@
 waeys
+qrcode
+pillow
