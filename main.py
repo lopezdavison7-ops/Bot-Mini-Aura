@@ -3,13 +3,43 @@ import random
 import logging
 from datetime import datetime
 
+# Configurar logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger('MINI-AURA')
 
+# Importar WAeys
 from WAeys.Defaults.index import default_connection_config
 from WAeys.Utils.auth_utils import init_auth_creds, make_memory_key_store
 from WAeys.Utils.browser_utils import Browsers
 from WAeys.Socket.socket import make_socket
+
+# Importar comandos desde las carpetas
+from commands.general import menu as cmd_menu
+from commands.general import info as cmd_info
+from commands.general import ping as cmd_ping
+from commands.general import owner as cmd_owner
+
+from commands.fun import chiste as cmd_chiste
+from commands.fun import dato as cmd_dato
+from commands.fun import frase as cmd_frase
+from commands.fun import amor as cmd_amor
+from commands.fun import futuro as cmd_futuro
+
+from commands.games import dado as cmd_dado
+from commands.games import moneda as cmd_moneda
+from commands.games import ppt as cmd_ppt
+from commands.games import ball as cmd_ball
+
+from commands.utils import calc as cmd_calc
+from commands.utils import fecha as cmd_fecha
+from commands.utils import hora as cmd_hora
+from commands.utils import password as cmd_password
+from commands.utils import reverso as cmd_reverso
+from commands.utils import mayus as cmd_mayus
+from commands.utils import minus as cmd_minus
+from commands.utils import contar as cmd_contar
+from commands.utils import morse as cmd_morse
+from commands.utils import leet as cmd_leet
 
 PREFIX = "."
 NUMERO_VINCULAR = "50576641902"
@@ -95,98 +125,69 @@ class BotMiniAura:
                 await self.sock['sendMessage'](remitente, {'text': respuesta})
 
         except Exception as e:
-            logger.error(f"Error: {e}")
+            logger.error(f"Error procesando mensaje: {e}")
 
     async def ejecutar_comando(self, comando, args, remitente, mencion):
         try:
-            if comando in ['menu', 'ayuda', 'help', 'start']:
-                return self.menu_principal(mencion)
-            elif comando in ['ping', 'test']:
-                return "🏓 *Pong!* Bot activo"
+            # Generales
+            if comando in ['menu', 'help', 'comandos']:
+                return cmd_menu(mencion)
             elif comando in ['info', 'bot']:
-                return f"🤖 *BOT MINI AURA*\n\n📊 Versión: {VERSION}\n👑 Owner: +{OWNER_NUMBER}"
+                return cmd_info(mencion)
+            elif comando in ['ping', 'test']:
+                return cmd_ping(mencion)
             elif comando in ['owner', 'dueño']:
-                return f"👑 *OWNER*\n\n📱 Número: +{OWNER_NUMBER}"
-            elif comando in ['dado', 'dice', 'roll']:
-                return f"🎲 *{mencion}*\n\nSacaste: *{random.randint(1, 6)}*"
-            elif comando in ['moneda', 'coin', 'cara']:
-                return f"🪙 *{mencion}*\n\nResultado: *{random.choice(['Cara', 'Cruz'])}*"
-            elif comando in ['8ball', 'bola']:
-                return random.choice(["Sí ✅", "No ❌", "Quizás 🤔", "Definitivamente 💯"])
-            elif comando in ['calc', 'math']:
-                try:
-                    return f"🧮 *Resultado:* {eval(' '.join(args))}"
-                except:
-                    return "❌ Error"
-            elif comando in ['fecha', 'date']:
-                return f"📅 *Fecha:* {datetime.now().strftime('%d/%m/%Y')}"
-            elif comando in ['hora', 'time']:
-                return f"⏰ *Hora:* {datetime.now().strftime('%H:%M:%S')}"
-            elif comando in ['password', 'pass']:
-                import string
-                chars = string.ascii_letters + string.digits
-                return f"🔑 *Contraseña:* `{''.join(random.choice(chars) for _ in range(12))}`"
-            elif comando in ['reverso', 'reverse']:
-                if args:
-                    return f"🔄 *Invertido:* {' '.join(args)[::-1]}"
-                return "❌ Uso: .reverso texto"
-            elif comando in ['mayus', 'upper']:
-                if args:
-                    return f"⬆️ *Mayúsculas:* {' '.join(args).upper()}"
-                return "❌ Uso: .mayus texto"
-            elif comando in ['minus', 'lower']:
-                if args:
-                    return f"⬇️ *Minúsculas:* {' '.join(args).lower()}"
-                return "❌ Uso: .minus texto"
-            elif comando in ['contar', 'count']:
-                if args:
-                    return f"📊 *Caracteres:* {len(' '.join(args))}"
-                return "❌ Uso: .contar texto"
-            elif comando in ['morse', 'codigomorse']:
-                if args:
-                    morse_dict = {'A': '.-', 'B': '-...', 'C': '-.-.', 'S': '...', 'O': '---', 'H': '....', 'L': '.-..'}
-                    resultado = ' '.join(morse_dict.get(c.upper(), '?') for c in ' '.join(args))
-                    return f"📡 *Morse:* {resultado}"
-                return "❌ Uso: .morse texto"
-            elif comando in ['leet', '1337']:
-                if args:
-                    leet_dict = {'a': '4', 'e': '3', 'i': '1', 'o': '0', 's': '5', 't': '7'}
-                    resultado = ''.join(leet_dict.get(c.lower(), c) for c in ' '.join(args))
-                    return f"🔡 *Leet:* {resultado}"
-                return "❌ Uso: .leet texto"
+                return cmd_owner(mencion)
+            
+            # Diversión
             elif comando in ['dato', 'fact']:
-                return random.choice([
-                    "🐙 Los pulpos tienen 3 corazones",
-                    "🍯 La miel nunca caduca",
-                    "🦩 Los flamencos son rosados por su comida",
-                    "🌍 Un día en Venus dura más que un año"
-                ])
+                return cmd_dato(mencion)
             elif comando in ['chiste', 'joke']:
-                return random.choice([
-                    "😂 ¿Por qué los pájaros no usan Facebook? Porque ya tienen Twitter",
-                    "😂 ¿Qué le dice un semáforo a otro? No me mires, me estoy cambiando",
-                    "😂 ¿Por qué el libro de matemáticas estaba triste? Porque tenía muchos problemas"
-                ])
+                return cmd_chiste(mencion)
             elif comando in ['frase', 'motivacion']:
-                return random.choice([
-                    "🌟 El éxito es la suma de pequeños esfuerzos",
-                    "💪 Cree en ti y todo será posible",
-                    "🚀 Tu única limitación es tu mente"
-                ])
+                return cmd_frase(mencion)
             elif comando in ['amor', 'love']:
-                if len(args) >= 2:
-                    return f"💑 *Compatibilidad*\n\n{args[0]} + {args[1]} = *{random.randint(50, 100)}%*"
-                return "❌ Uso: .amor nombre1 nombre2"
+                return cmd_amor(args, mencion)
             elif comando in ['futuro', 'predecir']:
-                return random.choice([
-                    "🔮 Veo éxito en tu futuro",
-                    "🌟 Algo bueno viene pronto",
-                    "💫 Una sorpresa te espera"
-                ])
+                return cmd_futuro(mencion)
+            
+            # Juegos
+            elif comando in ['dado', 'dice', 'roll']:
+                return cmd_dado(mencion)
+            elif comando in ['moneda', 'coin', 'cara']:
+                return cmd_moneda(mencion)
+            elif comando in ['ppt', 'piedra']:
+                return cmd_ppt(args, mencion)
+            elif comando in ['8ball', 'bola']:
+                return cmd_ball(args, mencion)
+            
+            # Utilidades
+            elif comando in ['calc', 'calcular', 'math']:
+                return cmd_calc(args, mencion)
+            elif comando in ['fecha', 'date']:
+                return cmd_fecha(mencion)
+            elif comando in ['hora', 'time']:
+                return cmd_hora(mencion)
+            elif comando in ['password', 'pass']:
+                return cmd_password(args, mencion)
+            elif comando in ['reverso', 'reverse']:
+                return cmd_reverso(args, mencion)
+            elif comando in ['mayus', 'upper']:
+                return cmd_mayus(args, mencion)
+            elif comando in ['minus', 'lower']:
+                return cmd_minus(args, mencion)
+            elif comando in ['contar', 'count']:
+                return cmd_contar(args, mencion)
+            elif comando in ['morse', 'codigomorse']:
+                return cmd_morse(args, mencion)
+            elif comando in ['leet', '1337']:
+                return cmd_leet(args, mencion)
+            
             else:
                 return f"❌ *{mencion}*\n\nComando no reconocido\n\nEscribe .menu"
+                
         except Exception as e:
-            logger.error(f"Error: {e}")
+            logger.error(f"Error ejecutando comando: {e}")
             return "⚠️ Error interno"
 
     def procesar_normal(self, texto, mencion):
@@ -204,49 +205,6 @@ class BotMiniAura:
                 return respuesta
         return f"{mencion}, no entendí 🤔\n\nEscribe .menu"
 
-    def menu_principal(self, mencion):
-        return f"""
-╭━━━━━━━━━━━━━━━━━━━━━━━━━━━╮
-┃   🤖 *BOT MINI AURA* 🤖   ┃
-╰━━━━━━━━━━━━━━━━━━━━━━━━━━━╯
-
-👋 *Hola {mencion}*
-
-⚡ *GENERALES*
-├─ .menu - Menú
-├─ .info - Info
-├─ .ping - Latencia
-└─ .owner - Dueño
-
-🎮 *JUEGOS*
-├─ .dado - Dado
-├─ .moneda - Moneda
-├─ .ppt - Piedra papel tijera
-└─ .8ball - Bola mágica
-
-🛠️ *UTILIDADES*
-├─ .calc - Calculadora
-├─ .fecha - Fecha
-├─ .hora - Hora
-├─ .password - Contraseña
-├─ .reverso - Invertir
-├─ .mayus - Mayúsculas
-├─ .minus - Minúsculas
-├─ .contar - Contar
-├─ .morse - Morse
-└─ .leet - Leet
-
-🎭 *DIVERSIÓN*
-├─ .dato - Dato curioso
-├─ .chiste - Chiste
-├─ .frase - Motivación
-├─ .amor - Compatibilidad
-└─ .futuro - Predecir
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-👑 Owner: +{OWNER_NUMBER}
-📊 Versión: {VERSION}
-        """
 
 if __name__ == '__main__':
     bot = BotMiniAura()
