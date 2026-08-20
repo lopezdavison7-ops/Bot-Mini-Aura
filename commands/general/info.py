@@ -1,2 +1,18 @@
 def ejecutar(mencion=None):
-    return "🤖 *BOT MINI AURA*\n\n📊 Versión: 4.0.0\n👑 Owner: +50578391933\n🌐 País: Nicaragua 🇳🇮"
+    return f"""
+╔════════════════════════════════════╗
+║   🤖 𝐁𝐎𝐓 𝐌𝐈𝐍𝐈 𝐀𝐔𝐑𝐀 🤖   ║
+╚════════════════════════════════════╝
+
+✨ *Información del Bot* ✨
+
+📌 *Nombre:* BOT MINI AURA
+📊 *Versión:* 4.0.0
+👑 *Owner:* +50578391933
+🌐 *País:* Nicaragua 🇳🇮
+💻 *Lenguaje:* Python
+
+╭┈ ↷
+│ ✐ Desarrollado con 💙
+╰─────────────────────────────────────
+"""
