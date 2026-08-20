@@ -1,0 +1,10 @@
+from .calc import ejecutar as calc
+from .fecha import ejecutar as fecha
+from .hora import ejecutar as hora
+from .password import ejecutar as password
+from .reverso import ejecutar as reverso
+from .mayus import ejecutar as mayus
+from .minus import ejecutar as minus
+from .contar import ejecutar as contar
+from .morse import ejecutar as morse
+from .leet import ejecutar as leet
