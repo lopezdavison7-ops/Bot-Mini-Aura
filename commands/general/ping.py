@@ -1,2 +1,2 @@
 def ejecutar(mencion=None):
-    return "🏓 *Pong!* Bot activo"
+    return "🏓 *Pong!* Bot activo ⚡"
