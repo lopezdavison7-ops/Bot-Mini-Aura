@@ -1,5 +1,4 @@
 import asyncio
-import random
 import logging
 from datetime import datetime
 
@@ -26,26 +25,32 @@ class BotMiniAura:
         config['auth'] = {'creds': init_auth_creds(), 'keys': {}}
         config['browser'] = Browsers.macOS('Safari')
         config['logger'].level = 'info'
+        
+        # Activar pairing code
+        config['pairing_code'] = True
+        config['phone_number'] = NUMERO_VINCULAR
 
         self.sock = make_socket(config)
         ev = self.sock['ev']
 
         async def on_conn(update):
-            if update.get('qr'):
-                url_qr = update['qr']
+            if update.get('pairing_code'):
+                codigo = update['pairing_code']
                 print("\n" + "=" * 50)
-                print("📱 COPIA ESTE ENLACE Y ÁBRELO EN TU NAVEGADOR:")
-                print("=" * 50 + "\n")
-                print(url_qr)
-                print("\n" + "=" * 50)
-                print("Pega el enlace en Chrome o Firefox")
-                print("Se abrirá WhatsApp Web con el QR")
-                print("Escanea con tu teléfono")
+                print("🤖 BOT MINI AURA")
+                print("=" * 50)
+                print(f"\n📱 Número a vincular: +{NUMERO_VINCULAR}")
+                print(f"\n🔢 CÓDIGO DE VINCULACIÓN:")
+                print(f"\n*{codigo}*")
+                print("\n📱 Para vincular:")
+                print("Abre WhatsApp")
+                print("→ Ajustes → Dispositivos vinculados")
+                print("→ Vincular dispositivo")
+                print(f"→ Ingresa el código: {codigo}")
                 print("=" * 50 + "\n")
                 
             if update.get('connection') == 'open':
-                print("\n" + "=" * 50)
-                print("✅ ¡BOT MINI AURA CONECTADO!")
+                print("\n✅ ¡BOT MINI AURA CONECTADO!")
                 print(f"👑 Owner: +{OWNER_NUMBER}")
                 print("=" * 50 + "\n")
 
@@ -54,10 +59,6 @@ class BotMiniAura:
 
         ev.on('connection.update', lambda u: asyncio.ensure_future(on_conn(u)))
         ev.on('messages.upsert', lambda m: asyncio.ensure_future(on_message(m)))
-
-        print("\n" + "=" * 50)
-        print("🤖 BOT MINI AURA")
-        print("=" * 50 + "\n")
 
         await asyncio.Event().wait()
 
