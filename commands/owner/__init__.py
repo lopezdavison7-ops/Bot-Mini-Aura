@@ -1,0 +1,11 @@
+from .stats import ejecutar as stats
+from .broadcast import ejecutar as broadcast
+from .addowner import ejecutar as addowner
+from .delowner import ejecutar as delowner
+from .listowners import ejecutar as listowners
+from .users import ejecutar as users
+from .dar import ejecutar as dar
+from .quitar import ejecutar as quitar
+from .reset import ejecutar as reset
+from .banuser import ejecutar as banuser
+from .unbanuser import ejecutar as unbanuser
