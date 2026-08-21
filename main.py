@@ -13,23 +13,26 @@ from WAeys.Utils.auth_utils import init_auth_creds, make_memory_key_store
 from WAeys.Utils.browser_utils import Browsers
 from WAeys.Socket.socket import make_socket
 
-# Importar comandos desde las carpetas
+# Importar comandos generales
 from commands.general import menu as cmd_menu
 from commands.general import info as cmd_info
 from commands.general import ping as cmd_ping
 from commands.general import owner as cmd_owner
 
+# Importar comandos de diversión
 from commands.fun import chiste as cmd_chiste
 from commands.fun import dato as cmd_dato
 from commands.fun import frase as cmd_frase
 from commands.fun import amor as cmd_amor
 from commands.fun import futuro as cmd_futuro
 
+# Importar comandos de juegos
 from commands.games import dado as cmd_dado
 from commands.games import moneda as cmd_moneda
 from commands.games import ppt as cmd_ppt
 from commands.games import ball as cmd_ball
 
+# Importar comandos de utilidades
 from commands.utils import calc as cmd_calc
 from commands.utils import fecha as cmd_fecha
 from commands.utils import hora as cmd_hora
@@ -41,6 +44,43 @@ from commands.utils import contar as cmd_contar
 from commands.utils import morse as cmd_morse
 from commands.utils import leet as cmd_leet
 
+# Importar comandos de economía
+from commands.economy import balance as cmd_balance
+from commands.economy import work as cmd_work
+from commands.economy import rank as cmd_rank
+from commands.economy import rob as cmd_rob
+from commands.economy import deposit as cmd_deposit
+from commands.economy import withdraw as cmd_withdraw
+from commands.economy import give as cmd_give
+
+# Importar comandos de antispam
+from commands.antispam import toggle as cmd_toggle
+from commands.antispam import warn as cmd_warn
+from commands.antispam import unwarn as cmd_unwarn
+from commands.antispam import warns as cmd_warns
+
+# Importar comandos de admin
+from commands.admin import kick as cmd_kick
+from commands.admin import ban as cmd_ban
+from commands.admin import promote as cmd_promote
+from commands.admin import demote as cmd_demote
+from commands.admin import group as cmd_group
+from commands.admin import welcome as cmd_welcome
+
+# Importar comandos de owner
+from commands.owner import stats as cmd_stats
+from commands.owner import broadcast as cmd_broadcast
+from commands.owner import addowner as cmd_addowner
+from commands.owner import delowner as cmd_delowner
+from commands.owner import listowners as cmd_listowners
+from commands.owner import users as cmd_users
+from commands.owner import dar as cmd_dar
+from commands.owner import quitar as cmd_quitar
+from commands.owner import reset as cmd_reset
+from commands.owner import banuser as cmd_banuser
+from commands.owner import unbanuser as cmd_unbanuser
+
+# Configuración
 PREFIX = "."
 NUMERO_VINCULAR = "50576641902"
 OWNER_NUMBER = "50578391933"
@@ -103,7 +143,8 @@ class BotMiniAura:
         try:
             texto = message.get('text', '').strip()
             remitente = message.get('from', 'desconocido')
-            mencion = f"@{remitente.split('@')[0]}"
+            numero_remitente = remitente.split('@')[0] if '@' in remitente else remitente
+            mencion = f"@{numero_remitente}"
 
             if not texto:
                 return
@@ -112,12 +153,12 @@ class BotMiniAura:
                 return
             self.mensajes_procesados.add(texto)
 
-            logger.info(f"Mensaje de {remitente}: {texto[:50]}")
+            logger.info(f"Mensaje de {numero_remitente}: {texto[:50]}")
 
             if texto.startswith(PREFIX):
                 comando = texto[len(PREFIX):].split(' ')[0].lower()
                 args = texto.split(' ')[1:] if ' ' in texto else []
-                respuesta = await self.ejecutar_comando(comando, args, remitente, mencion)
+                respuesta = await self.ejecutar_comando(comando, args, numero_remitente, mencion)
             else:
                 respuesta = self.procesar_normal(texto, mencion)
 
@@ -127,7 +168,7 @@ class BotMiniAura:
         except Exception as e:
             logger.error(f"Error procesando mensaje: {e}")
 
-    async def ejecutar_comando(self, comando, args, remitente, mencion):
+    async def ejecutar_comando(self, comando, args, usuario, mencion):
         try:
             # Generales
             if comando in ['menu', 'help', 'comandos']:
@@ -182,6 +223,70 @@ class BotMiniAura:
                 return cmd_morse(args, mencion)
             elif comando in ['leet', '1337']:
                 return cmd_leet(args, mencion)
+            
+            # Economía
+            elif comando in ['balance', 'bal', 'monedas']:
+                return cmd_balance(mencion, usuario)
+            elif comando in ['work', 'trabajar']:
+                return cmd_work(mencion, usuario)
+            elif comando in ['rank', 'top', 'ranking']:
+                return cmd_rank(mencion, usuario)
+            elif comando in ['robar', 'rob', 'steal']:
+                return cmd_rob(args, mencion, usuario)
+            elif comando in ['depositar', 'dep']:
+                return cmd_deposit(args, mencion, usuario)
+            elif comando in ['retirar', 'with']:
+                return cmd_withdraw(args, mencion, usuario)
+            elif comando in ['regalar', 'give', 'pay']:
+                return cmd_give(args, mencion, usuario)
+            
+            # Antispam
+            elif comando in ['antispam', 'spam']:
+                return cmd_toggle(args, mencion, usuario)
+            elif comando in ['warn', 'advertir']:
+                return cmd_warn(args, mencion, usuario)
+            elif comando in ['unwarn', 'quitarwarn']:
+                return cmd_unwarn(args, mencion, usuario)
+            elif comando in ['warns', 'advertencias']:
+                return cmd_warns(mencion, usuario)
+            
+            # Admin
+            elif comando in ['kick', 'expulsar']:
+                return cmd_kick(args, mencion, usuario)
+            elif comando in ['ban', 'banear']:
+                return cmd_ban(args, mencion, usuario)
+            elif comando in ['promover', 'promote']:
+                return cmd_promote(args, mencion, usuario)
+            elif comando in ['demover', 'demote']:
+                return cmd_demote(args, mencion, usuario)
+            elif comando in ['grupo', 'group']:
+                return cmd_group(mencion, usuario)
+            elif comando in ['bienvenida', 'welcome']:
+                return cmd_welcome(args, mencion, usuario)
+            
+            # Owner
+            elif comando in ['stats', 'estadisticas']:
+                return cmd_stats(mencion, usuario)
+            elif comando in ['broadcast', 'anuncio']:
+                return cmd_broadcast(args, mencion, usuario)
+            elif comando in ['addowner', 'agregarowner']:
+                return cmd_addowner(args, mencion, usuario)
+            elif comando in ['delowner', 'quitarowner']:
+                return cmd_delowner(args, mencion, usuario)
+            elif comando in ['listowners', 'owners']:
+                return cmd_listowners(mencion, usuario)
+            elif comando in ['usuarios', 'users']:
+                return cmd_users(mencion, usuario)
+            elif comando in ['dar', 'give']:
+                return cmd_dar(args, mencion, usuario)
+            elif comando in ['quitar', 'remove']:
+                return cmd_quitar(args, mencion, usuario)
+            elif comando in ['reset', 'reiniciaruser']:
+                return cmd_reset(args, mencion, usuario)
+            elif comando in ['banuser', 'banearuser']:
+                return cmd_banuser(args, mencion, usuario)
+            elif comando in ['unbanuser', 'desbanear']:
+                return cmd_unbanuser(args, mencion, usuario)
             
             else:
                 return f"❌ *{mencion}*\n\nComando no reconocido\n\nEscribe .menu"
