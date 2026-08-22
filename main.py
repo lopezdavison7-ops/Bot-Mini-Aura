@@ -95,7 +95,7 @@ class BotMiniAura:
         config = default_connection_config()
         config['auth'] = {'creds': init_auth_creds(), 'keys': make_memory_key_store()}
         config['browser'] = Browsers.macOS('Safari')
-        config['keepAliveIntervalMs'] = 5000
+        config['keepAliveIntervalMs'] = 30000
         config['logger'].level = 'info'
 
         self.sock = make_socket(config)
