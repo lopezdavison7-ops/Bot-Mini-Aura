@@ -1,38 +1,33 @@
 import asyncio
+import json
+import base64
+import os
 import random
 import logging
 from datetime import datetime
 
-# Configurar logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger('MINI-AURA')
 
-# Importar WAeys
 from WAeys.Defaults.index import default_connection_config
-from WAeys.Utils.auth_utils import init_auth_creds, make_memory_key_store
+from WAeys.Utils.auth_utils import init_auth_creds
 from WAeys.Utils.browser_utils import Browsers
 from WAeys.Socket.socket import make_socket
 
-# Importar comandos generales
+# Importar comandos
 from commands.general import menu as cmd_menu
 from commands.general import info as cmd_info
 from commands.general import ping as cmd_ping
 from commands.general import owner as cmd_owner
-
-# Importar comandos de diversión
 from commands.fun import chiste as cmd_chiste
 from commands.fun import dato as cmd_dato
 from commands.fun import frase as cmd_frase
 from commands.fun import amor as cmd_amor
 from commands.fun import futuro as cmd_futuro
-
-# Importar comandos de juegos
 from commands.games import dado as cmd_dado
 from commands.games import moneda as cmd_moneda
 from commands.games import ppt as cmd_ppt
 from commands.games import ball as cmd_ball
-
-# Importar comandos de utilidades
 from commands.utils import calc as cmd_calc
 from commands.utils import fecha as cmd_fecha
 from commands.utils import hora as cmd_hora
@@ -43,8 +38,6 @@ from commands.utils import minus as cmd_minus
 from commands.utils import contar as cmd_contar
 from commands.utils import morse as cmd_morse
 from commands.utils import leet as cmd_leet
-
-# Importar comandos de economía
 from commands.economy import balance as cmd_balance
 from commands.economy import work as cmd_work
 from commands.economy import rank as cmd_rank
@@ -52,22 +45,16 @@ from commands.economy import rob as cmd_rob
 from commands.economy import deposit as cmd_deposit
 from commands.economy import withdraw as cmd_withdraw
 from commands.economy import give as cmd_give
-
-# Importar comandos de antispam
 from commands.antispam import toggle as cmd_toggle
 from commands.antispam import warn as cmd_warn
 from commands.antispam import unwarn as cmd_unwarn
 from commands.antispam import warns as cmd_warns
-
-# Importar comandos de admin
 from commands.admin import kick as cmd_kick
 from commands.admin import ban as cmd_ban
 from commands.admin import promote as cmd_promote
 from commands.admin import demote as cmd_demote
 from commands.admin import group as cmd_group
 from commands.admin import welcome as cmd_welcome
-
-# Importar comandos de owner
 from commands.owner import stats as cmd_stats
 from commands.owner import broadcast as cmd_broadcast
 from commands.owner import addowner as cmd_addowner
@@ -86,66 +73,165 @@ NUMERO_VINCULAR = "50576641902"
 OWNER_NUMBER = "50578391933"
 VERSION = "4.0.0"
 
+# Persistencia de sesión
+SESSION_DIR = os.path.join(os.getcwd(), 'wa_session')
+CREDS_FILE = os.path.join(SESSION_DIR, 'creds.json')
+KEYS_FILE = os.path.join(SESSION_DIR, 'keys.json')
+
+def _encode(v):
+    if isinstance(v, bytes):
+        return {'__bytes__': base64.b64encode(v).decode('ascii')}
+    if isinstance(v, str):
+        return {'__str__': v}
+    if isinstance(v, dict):
+        return {k: _encode(x) for k, x in v.items()}
+    if isinstance(v, list):
+        return [_encode(x) for x in v]
+    return v
+
+def _decode(v):
+    if isinstance(v, dict):
+        if '__bytes__' in v:
+            return base64.b64decode(v['__bytes__'])
+        if '__str__' in v:
+            return v['__str__']
+        return {k: _decode(x) for k, x in v.items()}
+    if isinstance(v, list):
+        return [_decode(x) for x in v]
+    return v
+
+def save_creds(creds):
+    os.makedirs(SESSION_DIR, exist_ok=True)
+    with open(CREDS_FILE, 'w', encoding='utf-8') as f:
+        json.dump(_encode(creds), f, default=str, ensure_ascii=False, indent=2)
+
+def load_creds():
+    if not os.path.exists(CREDS_FILE):
+        return None
+    with open(CREDS_FILE, 'r', encoding='utf-8') as f:
+        return _decode(json.load(f))
+
+def make_file_key_store():
+    async def get(type_, ids):
+        all_keys = {}
+        if os.path.exists(KEYS_FILE):
+            with open(KEYS_FILE, 'r', encoding='utf-8') as f:
+                all_keys = _decode(json.load(f))
+        return {i: all_keys.get(type_, {}).get(i) for i in ids if all_keys.get(type_, {}).get(i) is not None}
+
+    async def set(data):
+        existing = {}
+        if os.path.exists(KEYS_FILE):
+            with open(KEYS_FILE, 'r', encoding='utf-8') as f:
+                existing = _decode(json.load(f))
+        for type_, entries in data.items():
+            for id_, value in entries.items():
+                existing.setdefault(type_, {})
+                if value is None:
+                    existing[type_].pop(id_, None)
+                else:
+                    existing[type_][id_] = value
+        os.makedirs(SESSION_DIR, exist_ok=True)
+        with open(KEYS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(_encode(existing), f, default=str, ensure_ascii=False, indent=2)
+
+    async def clear():
+        if os.path.exists(KEYS_FILE):
+            os.remove(KEYS_FILE)
+
+    return {'get': get, 'set': set, 'clear': clear}
+
+
 class BotMiniAura:
     def __init__(self):
         self.sock = None
         self.mensajes_procesados = set()
-        self.code_requested = False
+        self.auth = None
 
-    async def iniciar(self):
+    async def pair(self):
+        """Emparejamiento con código de 8 dígitos"""
         config = default_connection_config()
-        config['auth'] = {'creds': init_auth_creds(), 'keys': make_memory_key_store()}
+        config['auth'] = self.auth
         config['browser'] = Browsers.macOS('Safari')
         config['keepAliveIntervalMs'] = 5000
         config['logger'].level = 'info'
 
         self.sock = make_socket(config)
         ev = self.sock['ev']
+        done = asyncio.Event()
+
+        async def on_creds(update):
+            self.auth['creds'].update(update)
+            save_creds(self.auth['creds'])
+
+        ev.on('creds.update', lambda u: asyncio.ensure_future(on_creds(u)))
 
         async def on_conn(update):
-            if update.get('qr') and not self.code_requested:
-                self.code_requested = True
+            if update.get('qr') and not self.sock.get('_code_requested'):
+                self.sock['_code_requested'] = True
                 try:
-                    codigo = await self.sock['requestPairingCode'](NUMERO_VINCULAR)
-                    print("\n" + "=" * 60)
-                    print("🤖 BOT MINI AURA - VINCULACIÓN")
-                    print("=" * 60)
-                    print(f"\n📱 Número a vincular: +{NUMERO_VINCULAR}")
-                    print(f"\n🔢 CÓDIGO DE 8 DÍGITOS:")
-                    print(f"\n{'=' * 30}")
-                    print(f"   *{codigo}*")
-                    print(f"{'=' * 30}")
-                    print("\n📱 Para vincular:")
-                    print("1. Abre WhatsApp en tu teléfono")
-                    print("2. Ve a: Ajustes → Dispositivos vinculados")
-                    print("3. Click en: Vincular dispositivo")
-                    print("4. Selecciona: Vincular con número de teléfono")
-                    print(f"5. Ingresa el código: {codigo}")
-                    print("\n=" * 60)
-                    print("⏰ El código expira en 60 segundos")
-                    print("=" * 60 + "\n")
-                except Exception as e:
-                    print(f"\n❌ Error al solicitar código: {e}")
-                    print("Reintentando en 5 segundos...")
-                    self.code_requested = False
-                    await asyncio.sleep(5)
-                    
+                    code = await self.sock['requestPairingCode'](NUMERO_VINCULAR)
+                    print(f'\n🔢 CÓDIGO DE EMPAREJAMIENTO: {code}\n')
+                except Exception as err:
+                    print(f'❌ Error: {err}')
             if update.get('connection') == 'open':
-                print("\n" + "=" * 60)
-                print("✅ ¡BOT MINI AURA CONECTADO!")
-                print(f"📱 Número vinculado: +{NUMERO_VINCULAR}")
-                print(f"👑 Owner: +{OWNER_NUMBER}")
-                print("=" * 60 + "\n")
+                print('\n✅ ¡EMPAREJADO Y CONECTADO!')
+                done.set()
+
+        ev.on('connection.update', lambda u: asyncio.ensure_future(on_conn(u)))
+
+        try:
+            await asyncio.wait_for(done.wait(), timeout=120)
+        except asyncio.TimeoutError:
+            print('⏰ Tiempo agotado')
+        finally:
+            await self.sock['end']()
+        return done.is_set()
+
+    async def iniciar(self):
+        """Iniciar bot con reintentos"""
+        self.auth = {'creds': init_auth_creds(), 'keys': make_file_key_store()}
+        
+        # Cargar sesión existente si hay
+        creds = load_creds()
+        if creds is not None:
+            self.auth = {'creds': creds, 'keys': make_file_key_store()}
+        
+        attempt = 1
+        while True:
+            print(f'--- Intento {attempt} ---')
+            ok = await self.pair()
+            if ok:
+                print('✅ Sesión guardada.')
+                break
+            attempt += 1
+            await asyncio.sleep(3)
+            self.auth['creds'] = init_auth_creds()
+            save_creds(self.auth['creds'])
+        
+        # Después de conectar, ejecutar bot
+        await self.ejecutar_bot()
+
+    async def ejecutar_bot(self):
+        """Ejecutar el bot después de conectar"""
+        config = default_connection_config()
+        creds = load_creds()
+        config['auth'] = {'creds': creds, 'keys': make_file_key_store()}
+        config['browser'] = Browsers.macOS('Safari')
+        config['keepAliveIntervalMs'] = 30000
+        config['logger'].level = 'info'
+
+        self.sock = make_socket(config)
+        ev = self.sock['ev']
 
         async def on_message(message):
             await self.procesar_mensaje(message)
 
-        ev.on('connection.update', lambda u: asyncio.ensure_future(on_conn(u)))
         ev.on('messages.upsert', lambda m: asyncio.ensure_future(on_message(m)))
 
-        print("\n🤖 Iniciando BOT MINI AURA...")
-        print("Solicitando código de emparejamiento...\n")
-
+        print('\n🤖 BOT MINI AURA ACTIVO')
+        print(f'👑 Owner: +{OWNER_NUMBER}')
+        
         try:
             await asyncio.Event().wait()
         except (KeyboardInterrupt, asyncio.CancelledError):
@@ -165,8 +251,6 @@ class BotMiniAura:
                 return
             self.mensajes_procesados.add(texto)
 
-            logger.info(f"Mensaje de {numero_remitente}: {texto[:50]}")
-
             if texto.startswith(PREFIX):
                 comando = texto[len(PREFIX):].split(' ')[0].lower()
                 args = texto.split(' ')[1:] if ' ' in texto else []
@@ -178,11 +262,10 @@ class BotMiniAura:
                 await self.sock['sendMessage'](remitente, {'text': respuesta})
 
         except Exception as e:
-            logger.error(f"Error procesando mensaje: {e}")
+            logger.error(f"Error: {e}")
 
     async def ejecutar_comando(self, comando, args, usuario, mencion):
         try:
-            # Generales
             if comando in ['menu', 'help', 'comandos']:
                 return cmd_menu(mencion)
             elif comando in ['info', 'bot']:
@@ -191,8 +274,6 @@ class BotMiniAura:
                 return cmd_ping(mencion)
             elif comando in ['owner', 'dueño']:
                 return cmd_owner(mencion)
-            
-            # Diversión
             elif comando in ['dato', 'fact']:
                 return cmd_dato(mencion)
             elif comando in ['chiste', 'joke']:
@@ -203,8 +284,6 @@ class BotMiniAura:
                 return cmd_amor(args, mencion)
             elif comando in ['futuro', 'predecir']:
                 return cmd_futuro(mencion)
-            
-            # Juegos
             elif comando in ['dado', 'dice', 'roll']:
                 return cmd_dado(mencion)
             elif comando in ['moneda', 'coin', 'cara']:
@@ -213,8 +292,6 @@ class BotMiniAura:
                 return cmd_ppt(args, mencion)
             elif comando in ['8ball', 'bola']:
                 return cmd_ball(args, mencion)
-            
-            # Utilidades
             elif comando in ['calc', 'calcular', 'math']:
                 return cmd_calc(args, mencion)
             elif comando in ['fecha', 'date']:
@@ -235,8 +312,6 @@ class BotMiniAura:
                 return cmd_morse(args, mencion)
             elif comando in ['leet', '1337']:
                 return cmd_leet(args, mencion)
-            
-            # Economía
             elif comando in ['balance', 'bal', 'monedas']:
                 return cmd_balance(mencion, usuario)
             elif comando in ['work', 'trabajar']:
@@ -251,8 +326,6 @@ class BotMiniAura:
                 return cmd_withdraw(args, mencion, usuario)
             elif comando in ['regalar', 'give', 'pay']:
                 return cmd_give(args, mencion, usuario)
-            
-            # Antispam
             elif comando in ['antispam', 'spam']:
                 return cmd_toggle(args, mencion, usuario)
             elif comando in ['warn', 'advertir']:
@@ -261,8 +334,6 @@ class BotMiniAura:
                 return cmd_unwarn(args, mencion, usuario)
             elif comando in ['warns', 'advertencias']:
                 return cmd_warns(mencion, usuario)
-            
-            # Admin
             elif comando in ['kick', 'expulsar']:
                 return cmd_kick(args, mencion, usuario)
             elif comando in ['ban', 'banear']:
@@ -275,8 +346,6 @@ class BotMiniAura:
                 return cmd_group(mencion, usuario)
             elif comando in ['bienvenida', 'welcome']:
                 return cmd_welcome(args, mencion, usuario)
-            
-            # Owner
             elif comando in ['stats', 'estadisticas']:
                 return cmd_stats(mencion, usuario)
             elif comando in ['broadcast', 'anuncio']:
@@ -299,12 +368,10 @@ class BotMiniAura:
                 return cmd_banuser(args, mencion, usuario)
             elif comando in ['unbanuser', 'desbanear']:
                 return cmd_unbanuser(args, mencion, usuario)
-            
             else:
                 return f"❌ *{mencion}*\n\nComando no reconocido\n\nEscribe .menu"
-                
         except Exception as e:
-            logger.error(f"Error ejecutando comando: {e}")
+            logger.error(f"Error: {e}")
             return "⚠️ Error interno"
 
     def procesar_normal(self, texto, mencion):
@@ -328,6 +395,6 @@ if __name__ == '__main__':
     try:
         asyncio.run(bot.iniciar())
     except KeyboardInterrupt:
-        print("\n👋 Bot detenido por el usuario")
+        print("\n👋 Bot detenido")
     except Exception as e:
         logger.error(f"Error fatal: {e}")
