@@ -90,43 +90,52 @@ class BotMiniAura:
     def __init__(self):
         self.sock = None
         self.mensajes_procesados = set()
+        self.code_requested = False
 
     async def iniciar(self):
         config = default_connection_config()
         config['auth'] = {'creds': init_auth_creds(), 'keys': make_memory_key_store()}
         config['browser'] = Browsers.macOS('Safari')
-        config['keepAliveIntervalMs'] = 30000
+        config['keepAliveIntervalMs'] = 5000
         config['logger'].level = 'info'
 
         self.sock = make_socket(config)
         ev = self.sock['ev']
 
         async def on_conn(update):
-            if update.get('qr') and not self.sock.get('_code_requested'):
-                self.sock['_code_requested'] = True
+            if update.get('qr') and not self.code_requested:
+                self.code_requested = True
                 try:
                     codigo = await self.sock['requestPairingCode'](NUMERO_VINCULAR)
-                    print("\n" + "=" * 50)
-                    print("🤖 BOT MINI AURA")
-                    print("=" * 50)
+                    print("\n" + "=" * 60)
+                    print("🤖 BOT MINI AURA - VINCULACIÓN")
+                    print("=" * 60)
                     print(f"\n📱 Número a vincular: +{NUMERO_VINCULAR}")
-                    print(f"\n🔢 CÓDIGO DE EMPAREJAMIENTO:")
-                    print(f"\n*{codigo}*")
+                    print(f"\n🔢 CÓDIGO DE 8 DÍGITOS:")
+                    print(f"\n{'=' * 30}")
+                    print(f"   *{codigo}*")
+                    print(f"{'=' * 30}")
                     print("\n📱 Para vincular:")
-                    print("Abre WhatsApp")
-                    print("→ Ajustes → Dispositivos vinculados")
-                    print("→ Vincular con número de teléfono")
-                    print(f"→ Ingresa el código: {codigo}")
-                    print("=" * 50 + "\n")
+                    print("1. Abre WhatsApp en tu teléfono")
+                    print("2. Ve a: Ajustes → Dispositivos vinculados")
+                    print("3. Click en: Vincular dispositivo")
+                    print("4. Selecciona: Vincular con número de teléfono")
+                    print(f"5. Ingresa el código: {codigo}")
+                    print("\n=" * 60)
+                    print("⏰ El código expira en 60 segundos")
+                    print("=" * 60 + "\n")
                 except Exception as e:
-                    print(f"❌ Error al solicitar código: {e}")
+                    print(f"\n❌ Error al solicitar código: {e}")
+                    print("Reintentando en 5 segundos...")
+                    self.code_requested = False
+                    await asyncio.sleep(5)
                     
             if update.get('connection') == 'open':
-                print("\n" + "=" * 50)
+                print("\n" + "=" * 60)
                 print("✅ ¡BOT MINI AURA CONECTADO!")
                 print(f"📱 Número vinculado: +{NUMERO_VINCULAR}")
                 print(f"👑 Owner: +{OWNER_NUMBER}")
-                print("=" * 50 + "\n")
+                print("=" * 60 + "\n")
 
         async def on_message(message):
             await self.procesar_mensaje(message)
@@ -137,7 +146,10 @@ class BotMiniAura:
         print("\n🤖 Iniciando BOT MINI AURA...")
         print("Solicitando código de emparejamiento...\n")
 
-        await asyncio.Event().wait()
+        try:
+            await asyncio.Event().wait()
+        except (KeyboardInterrupt, asyncio.CancelledError):
+            pass
 
     async def procesar_mensaje(self, message):
         try:
@@ -313,4 +325,9 @@ class BotMiniAura:
 
 if __name__ == '__main__':
     bot = BotMiniAura()
-    asyncio.run(bot.iniciar())
+    try:
+        asyncio.run(bot.iniciar())
+    except KeyboardInterrupt:
+        print("\n👋 Bot detenido por el usuario")
+    except Exception as e:
+        logger.error(f"Error fatal: {e}")
