@@ -14,58 +14,63 @@ from WAeys.Utils.auth_utils import init_auth_creds
 from WAeys.Utils.browser_utils import Browsers
 from WAeys.Socket.socket import make_socket
 
-# Importar comandos - IGUAL QUE EL TUYO
-from commands.general import menu as cmd_menu
-from commands.general import info as cmd_info
-from commands.general import ping as cmd_ping
-from commands.general import owner as cmd_owner
-from commands.fun import chiste as cmd_chiste
-from commands.fun import dato as cmd_dato
-from commands.fun import frase as cmd_frase
-from commands.fun import amor as cmd_amor
-from commands.fun import futuro as cmd_futuro
-from commands.games import dado as cmd_dado
-from commands.games import moneda as cmd_moneda
-from commands.games import ppt as cmd_ppt
-from commands.games import ball as cmd_ball
-from commands.utils import calc as cmd_calc
-from commands.utils import fecha as cmd_fecha
-from commands.utils import hora as cmd_hora
-from commands.utils import password as cmd_password
-from commands.utils import reverso as cmd_reverso
-from commands.utils import mayus as cmd_mayus
-from commands.utils import minus as cmd_minus
-from commands.utils import contar as cmd_contar
-from commands.utils import morse as cmd_morse
-from commands.utils import leet as cmd_leet
-from commands.economy import balance as cmd_balance
-from commands.economy import work as cmd_work
-from commands.economy import rank as cmd_rank
-from commands.economy import rob as cmd_rob
-from commands.economy import deposit as cmd_deposit
-from commands.economy import withdraw as cmd_withdraw
-from commands.economy import give as cmd_give
-from commands.antispam import toggle as cmd_toggle
-from commands.antispam import warn as cmd_warn
-from commands.antispam import unwarn as cmd_unwarn
-from commands.antispam import warns as cmd_warns
-from commands.admin import kick as cmd_kick
-from commands.admin import ban as cmd_ban
-from commands.admin import promote as cmd_promote
-from commands.admin import demote as cmd_demote
-from commands.admin import group as cmd_group
-from commands.admin import welcome as cmd_welcome
-from commands.owner import stats as cmd_stats
-from commands.owner import broadcast as cmd_broadcast
-from commands.owner import addowner as cmd_addowner
-from commands.owner import delowner as cmd_delowner
-from commands.owner import listowners as cmd_listowners
-from commands.owner import users as cmd_users
-from commands.owner import dar as cmd_dar
-from commands.owner import quitar as cmd_quitar
-from commands.owner import reset as cmd_reset
-from commands.owner import banuser as cmd_banuser
-from commands.owner import unbanuser as cmd_unbanuser
+# Importar comandos con protección
+try:
+    from commands.general import menu as cmd_menu
+    from commands.general import info as cmd_info
+    from commands.general import ping as cmd_ping
+    from commands.general import owner as cmd_owner
+    from commands.fun import chiste as cmd_chiste
+    from commands.fun import dato as cmd_dato
+    from commands.fun import frase as cmd_frase
+    from commands.fun import amor as cmd_amor
+    from commands.fun import futuro as cmd_futuro
+    from commands.games import dado as cmd_dado
+    from commands.games import moneda as cmd_moneda
+    from commands.games import ppt as cmd_ppt
+    from commands.games import ball as cmd_ball
+    from commands.utils import calc as cmd_calc
+    from commands.utils import fecha as cmd_fecha
+    from commands.utils import hora as cmd_hora
+    from commands.utils import password as cmd_password
+    from commands.utils import reverso as cmd_reverso
+    from commands.utils import mayus as cmd_mayus
+    from commands.utils import minus as cmd_minus
+    from commands.utils import contar as cmd_contar
+    from commands.utils import morse as cmd_morse
+    from commands.utils import leet as cmd_leet
+    from commands.economy import balance as cmd_balance
+    from commands.economy import work as cmd_work
+    from commands.economy import rank as cmd_rank
+    from commands.economy import rob as cmd_rob
+    from commands.economy import deposit as cmd_deposit
+    from commands.economy import withdraw as cmd_withdraw
+    from commands.economy import give as cmd_give
+    from commands.antispam import toggle as cmd_toggle
+    from commands.antispam import warn as cmd_warn
+    from commands.antispam import unwarn as cmd_unwarn
+    from commands.antispam import warns as cmd_warns
+    from commands.admin import kick as cmd_kick
+    from commands.admin import ban as cmd_ban
+    from commands.admin import promote as cmd_promote
+    from commands.admin import demote as cmd_demote
+    from commands.admin import group as cmd_group
+    from commands.admin import welcome as cmd_welcome
+    from commands.owner import stats as cmd_stats
+    from commands.owner import broadcast as cmd_broadcast
+    from commands.owner import addowner as cmd_addowner
+    from commands.owner import delowner as cmd_delowner
+    from commands.owner import listowners as cmd_listowners
+    from commands.owner import users as cmd_users
+    from commands.owner import dar as cmd_dar
+    from commands.owner import quitar as cmd_quitar
+    from commands.owner import reset as cmd_reset
+    from commands.owner import banuser as cmd_banuser
+    from commands.owner import unbanuser as cmd_unbanuser
+    COMANDOS_DISPONIBLES = True
+except ImportError:
+    COMANDOS_DISPONIBLES = False
+    logger.warning("⚠️ No se encontró la carpeta 'commands'. Los comandos estarán deshabilitados.")
 
 PREFIX = "."
 NUMERO_VINCULAR = "50576641902"
@@ -77,25 +82,18 @@ CREDS_FILE = os.path.join(SESSION_DIR, 'creds.json')
 KEYS_FILE = os.path.join(SESSION_DIR, 'keys.json')
 
 def _encode(v):
-    if isinstance(v, bytes):
-        return {'__bytes__': base64.b64encode(v).decode('ascii')}
-    if isinstance(v, str):
-        return {'__str__': v}
-    if isinstance(v, dict):
-        return {k: _encode(x) for k, x in v.items()}
-    if isinstance(v, list):
-        return [_encode(x) for x in v]
+    if isinstance(v, bytes): return {'__bytes__': base64.b64encode(v).decode('ascii')}
+    if isinstance(v, str): return {'__str__': v}
+    if isinstance(v, dict): return {k: _encode(x) for k, x in v.items()}
+    if isinstance(v, list): return [_encode(x) for x in v]
     return v
 
 def _decode(v):
     if isinstance(v, dict):
-        if '__bytes__' in v:
-            return base64.b64decode(v['__bytes__'])
-        if '__str__' in v:
-            return v['__str__']
+        if '__bytes__' in v: return base64.b64decode(v['__bytes__'])
+        if '__str__' in v: return v['__str__']
         return {k: _decode(x) for k, x in v.items()}
-    if isinstance(v, list):
-        return [_decode(x) for x in v]
+    if isinstance(v, list): return [_decode(x) for x in v]
     return v
 
 def save_creds(creds):
@@ -104,8 +102,7 @@ def save_creds(creds):
         json.dump(_encode(creds), f, default=str, ensure_ascii=False, indent=2)
 
 def load_creds():
-    if not os.path.exists(CREDS_FILE):
-        return None
+    if not os.path.exists(CREDS_FILE): return None
     with open(CREDS_FILE, 'r', encoding='utf-8') as f:
         return _decode(json.load(f))
 
@@ -125,17 +122,14 @@ def make_file_key_store():
         for type_, entries in data.items():
             for id_, value in entries.items():
                 existing.setdefault(type_, {})
-                if value is None:
-                    existing[type_].pop(id_, None)
-                else:
-                    existing[type_][id_] = value
+                if value is None: existing[type_].pop(id_, None)
+                else: existing[type_][id_] = value
         os.makedirs(SESSION_DIR, exist_ok=True)
         with open(KEYS_FILE, 'w', encoding='utf-8') as f:
             json.dump(_encode(existing), f, default=str, ensure_ascii=False, indent=2)
 
     async def clear():
-        if os.path.exists(KEYS_FILE):
-            os.remove(KEYS_FILE)
+        if os.path.exists(KEYS_FILE): os.remove(KEYS_FILE)
 
     return {'get': get, 'set': set, 'clear': clear}
 
@@ -146,51 +140,67 @@ class BotMiniAura:
         self.auth = None
 
     async def iniciar(self):
-        creds = load_creds()
-        if creds is not None:
-            self.auth = {'creds': creds, 'keys': make_file_key_store()}
-        else:
-            self.auth = {'creds': init_auth_creds(), 'keys': make_file_key_store()}
+        while True:
+            print("\n🔄 Iniciando ciclo de conexión...")
+            creds = load_creds()
+            self.auth = {'creds': creds if creds else init_auth_creds(), 'keys': make_file_key_store()}
 
-        config = default_connection_config()
-        config['auth'] = self.auth
-        config['browser'] = Browsers.windows('Chrome') # CAMBIO 1
-        config['keepAliveIntervalMs'] = 5000 # CAMBIO 2
-        config['markOnlineOnConnect'] = False # CAMBIO 3
-        config['logger'].level = 'info'
+            config = default_connection_config()
+            config['auth'] = self.auth
+            config['browser'] = Browsers.windows('Chrome')
+            config['keepAliveIntervalMs'] = 5000
+            config['markOnlineOnConnect'] = False
+            config['logger'].level = 'info'
 
-        self.sock = make_socket(config)
-        ev = self.sock['ev']
-        emparejado = asyncio.Event()
+            self.sock = make_socket(config)
+            ev = self.sock['ev']
+            code_requested = False
+            connected_event = asyncio.Event()
+            failed_event = asyncio.Event()
 
-        async def on_creds(update):
-            self.auth['creds'].update(update)
-            save_creds(self.auth['creds'])
+            async def on_creds(update):
+                self.auth['creds'].update(update)
+                save_creds(self.auth['creds'])
 
-        ev.on('creds.update', lambda u: asyncio.ensure_future(on_creds(u)))
+            async def on_conn(update):
+                nonlocal code_requested
+                if update.get('qr') and not code_requested:
+                    code_requested = True
+                    try:
+                        code = await self.sock['requestPairingCode'](NUMERO_VINCULAR)
+                        print(f'\n🔢 CÓDIGO DE EMPAREJAMIENTO: {code}\n')
+                    except Exception as err:
+                        print(f'❌ Error pidiendo código: {err}')
+                        code_requested = False
 
-        async def on_conn(update):
-            if update.get('qr') and not self.sock.get('_code_requested'):
-                self.sock['_code_requested'] = True
-                try:
-                    code = await self.sock['requestPairingCode'](NUMERO_VINCULAR)
-                    print(f'\n🔢 CÓDIGO DE EMPAREJAMIENTO: {code}\n')
-                except Exception as err:
-                    print(f'❌ Error: {err}')
+                if update.get('connection') == 'open':
+                    print('\n✅ ¡EMPAREJADO Y CONECTADO!')
+                    connected_event.set()
+                    
+                if update.get('connection') == 'close':
+                    print(f'\n⚠️ Conexión cerrada. Limpiando sesión corrupta...')
+                    if os.path.exists(CREDS_FILE): os.remove(CREDS_FILE)
+                    if os.path.exists(KEYS_FILE): os.remove(KEYS_FILE)
+                    failed_event.set()
 
-            if update.get('connection') == 'open':
-                print('\n✅ ¡EMPAREJADO Y CONECTADO!')
-                emparejado.set()
-                print('\n🤖 BOT MINI AURA ACTIVO')
-                print(f'👑 Owner: +{OWNER_NUMBER}')
+            ev.on('creds.update', lambda u: asyncio.ensure_future(on_creds(u)))
+            ev.on('connection.update', lambda u: asyncio.ensure_future(on_conn(u)))
 
-        ev.on('connection.update', lambda u: asyncio.ensure_future(on_conn(u)))
-        ev.on('messages.upsert', lambda m: asyncio.ensure_future(self.procesar_mensaje(m)))
+            done, pending = await asyncio.wait(
+                [asyncio.create_task(connected_event.wait()), asyncio.create_task(failed_event.wait())],
+                return_when=asyncio.FIRST_COMPLETED, timeout=120
+            )
+            for task in pending: task.cancel()
 
-        try:
-            await asyncio.wait_for(emparejado.wait(), timeout=120)
-        except asyncio.TimeoutError:
-            print('⏰ Tiempo agotado para emparejar')
+            if connected_event.is_set():
+                ev.on('messages.upsert', lambda m: asyncio.ensure_future(self.procesar_mensaje(m)))
+                print('\n🤖 BOT MINI AURA ACTIVO Y ESCUCHANDO MENSAJES\n')
+                break
+            else:
+                print("🔄 Reintentando en 5 segundos...")
+                try: await self.sock['end']()
+                except: pass
+                await asyncio.sleep(5)
 
         await asyncio.Event().wait()
 
@@ -199,6 +209,10 @@ class BotMiniAura:
             msgs = message.get('messages', [])
             if not msgs: return
             msg = msgs[0]
+            
+            # Evitar que el bot se responda a sí mismo (Bucle infinito)
+            if msg.get('key', {}).get('fromMe'): return
+
             texto = msg.get('message', {}).get('conversation', '').strip()
             if not texto:
                 texto = msg.get('message', {}).get('extendedTextMessage', {}).get('text', '').strip()
@@ -213,7 +227,8 @@ class BotMiniAura:
 
             if texto.startswith(PREFIX):
                 comando = texto[len(PREFIX):].split(' ')[0].lower()
-                args = texto.split(' ')[1:] if ' in texto else []
+                # CORRECCIÓN DEL ERROR DE SINTAXIS (' ' in texto)
+                args = texto.split(' ')[1:] if ' ' in texto else []
                 respuesta = await self.ejecutar_comando(comando, args, numero_remitente, mencion)
             else:
                 respuesta = self.procesar_normal(texto, mencion)
@@ -222,24 +237,22 @@ class BotMiniAura:
                 await self.sock['sendMessage'](remitente, {'text': respuesta})
 
         except Exception as e:
-            logger.error(f"Error: {e}")
+            logger.error(f"Error procesando mensaje: {e}")
 
     async def ejecutar_comando(self, comando, args, usuario, mencion):
-        # TODO TU CODIGO DE COMANDOS IGUAL
+        if not COMANDOS_DISPONIBLES: return "⚠️ Los comandos están deshabilitados."
         try:
-            if comando in ['menu', 'help', 'comandos']:
-                return cmd_menu(mencion)
-            #... pega aquí todo tu if/elif igual...
-            else:
-                return f"❌ *{mencion}*\n\nComando no reconocido\nEscribe.menu"
+            if comando in ['menu', 'help', 'comandos']: return cmd_menu(mencion)
+            # ... pega aquí todo tu if/elif igual...
+            else: return f"❌ *{mencion}*\n\nComando no reconocido\nEscribe .menu"
         except Exception as e:
-            logger.error(f"Error: {e}")
+            logger.error(f"Error en comando: {e}")
             return "⚠️ Error interno"
 
     def procesar_normal(self, texto, mencion):
         t = texto.lower()
         respuestas = {
-            'hola': f'👋 ¡Hola {mencion}! Soy *MINI AURA*\n\nEscribe.menu',
+            'hola': f'👋 ¡Hola {mencion}! Soy *MINI AURA*\n\nEscribe .menu',
             'gracias': f'😊 ¡De nada {mencion}!',
             'adios': f'👋 ¡Hasta luego {mencion}!',
             'como estas': f'💪 ¡Estoy genial {mencion}!',
@@ -247,9 +260,8 @@ class BotMiniAura:
             'owner': f'👑 Mi dueño es +{OWNER_NUMBER}',
         }
         for clave, respuesta in respuestas.items():
-            if clave in t:
-                return respuesta
-        return f"{mencion}, no entendí 🤔\nEscribe.menu"
+            if clave in t: return respuesta
+        return None # Retorna None para no spamear "no entendi" a cada sticker o foto
 
 if __name__ == '__main__':
     bot = BotMiniAura()
