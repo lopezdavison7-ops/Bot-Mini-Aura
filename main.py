@@ -9,10 +9,10 @@ from datetime import datetime
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger('MINI-AURA')
 
-from WAeys.Defaults.index import default_connection_config
-from WAeys.Utils.auth_utils import init_auth_creds
-from WAeys.Utils.browser_utils import Browsers
-from WAeys.Socket.socket import make_socket
+from waeys.Defaults.index import default_connection_config
+from waeys.Utils.auth_utils import init_auth_creds
+from waeys.Utils.browser_utils import Browsers
+from waeys.Socket.socket import make_socket
 
 # Importar comandos con protección
 try:
