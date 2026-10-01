@@ -1,2 +1,2 @@
-git+https://github.com/toZyn/WAeys.git
+
 flask
