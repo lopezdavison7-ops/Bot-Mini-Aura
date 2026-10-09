@@ -2,6 +2,7 @@ import asyncio
 import json
 import base64
 import os
+import sys
 import random
 import logging
 from datetime import datetime
@@ -9,12 +10,28 @@ from datetime import datetime
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger('MINI-AURA')
 
-from waeys.Defaults.index import default_connection_config
-from waeys.Utils.auth_utils import init_auth_creds
-from waeys.Utils.browser_utils import Browsers
-from waeys.Socket.socket import make_socket
+# ═══ La carpeta del script siempre en sys.path ═══
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
 
-# Importar comandos con protección
+# ═══ Import de WAeys tolerante a mayúsculas/minúsculas ═══
+try:
+    from WAeys.Defaults.index import default_connection_config
+    from WAeys.Utils.auth_utils import init_auth_creds
+    from WAeys.Utils.browser_utils import Browsers
+    from WAeys.Socket.socket import make_socket
+except ModuleNotFoundError:
+    try:
+        from waeys.Defaults.index import default_connection_config
+        from waeys.Utils.auth_utils import init_auth_creds
+        from waeys.Utils.browser_utils import Browsers
+        from waeys.Socket.socket import make_socket
+    except ModuleNotFoundError:
+        print('❌ WAeys no está instalado. Ejecuta: pip install -r requirements.txt')
+        sys.exit(1)
+
+# ═══ Comandos del bot (opcionales si falta la carpeta) ═══
 try:
     from commands.general import menu as cmd_menu
     from commands.general import info as cmd_info
@@ -70,14 +87,14 @@ try:
     COMANDOS_DISPONIBLES = True
 except ImportError:
     COMANDOS_DISPONIBLES = False
-    logger.warning("⚠️ No se encontró la carpeta 'commands'. Los comandos estarán deshabilitados.")
+    logger.warning("⚠️ No se encontró la carpeta 'commands'. Comandos deshabilitados.")
 
 PREFIX = "."
-NUMERO_VINCULAR = "50576641902"
+NUMERO_VINCULAR = "50576641902"   # valor por defecto si dejas vacío el input
 OWNER_NUMBER = "50578391933"
 VERSION = "4.0.0"
 
-SESSION_DIR = os.path.join(os.getcwd(), 'wa_session')
+SESSION_DIR = os.path.join(BASE_DIR, 'wa_session')
 CREDS_FILE = os.path.join(SESSION_DIR, 'creds.json')
 KEYS_FILE = os.path.join(SESSION_DIR, 'keys.json')
 
@@ -133,15 +150,54 @@ def make_file_key_store():
 
     return {'get': get, 'set': set, 'clear': clear}
 
+def _print_qr(qr_string):
+    """Dibuja el QR en ASCII en la consola (o imprime el texto crudo)."""
+    try:
+        import qrcode
+        qr = qrcode.QRCode(border=1)
+        qr.add_data(qr_string)
+        qr.make(fit=True)
+        qr.print_ascii(invert=True)
+    except Exception:
+        print(qr_string)
+
 class BotMiniAura:
     def __init__(self):
         self.sock = None
         self.mensajes_procesados = set()
         self.auth = None
+        self.metodo = '1'              # '1' = código 8 dígitos, '2' = QR
+        self.numero_vincular = NUMERO_VINCULAR
+
+    async def _menu_vinculacion(self):
+        print('\n' + '═' * 46)
+        print(f'   🤖 BOT MINI AURA v{VERSION}')
+        print('   Métodos de vinculación:')
+        print('   [1] 🔢 Código de 8 dígitos')
+        print('   [2] 📷 Código QR')
+        print('═' * 46)
+        try:
+            opt = (await asyncio.to_thread(input, '➡️  Elige opción (1/2): ')).strip() or '1'
+            self.metodo = '2' if opt == '2' else '1'
+            if self.metodo == '1':
+                num = (await asyncio.to_thread(
+                    input, f'📞 Número a vincular (internacional sin +, Enter = {NUMERO_VINCULAR}): '
+                )).strip()
+                self.numero_vincular = num or NUMERO_VINCULAR
+            else:
+                print('📷 Cuando aparezca el QR: WhatsApp → Dispositivos vinculados → Vincular dispositivo.')
+        except (EOFError, OSError):
+            print(f'⚠️ Sin entrada interactiva: código de 8 dígitos con {NUMERO_VINCULAR}.')
+            self.metodo, self.numero_vincular = '1', NUMERO_VINCULAR
 
     async def iniciar(self):
+        if load_creds() is None:
+            await self._menu_vinculacion()
+        else:
+            print('📦 Sesión guardada detectada: reconectando sin vincular de nuevo...')
+
         while True:
-            print("\n🔄 Iniciando ciclo de conexión...")
+            print('\n🔄 Iniciando ciclo de conexión...')
             creds = load_creds()
             self.auth = {'creds': creds if creds else init_auth_creds(), 'keys': make_file_key_store()}
 
@@ -155,6 +211,7 @@ class BotMiniAura:
             self.sock = make_socket(config)
             ev = self.sock['ev']
             code_requested = False
+            ultimo_qr = ['']
             connected_event = asyncio.Event()
             failed_event = asyncio.Event()
 
@@ -164,21 +221,35 @@ class BotMiniAura:
 
             async def on_conn(update):
                 nonlocal code_requested
-                if update.get('qr') and not code_requested:
+                qr = update.get('qr')
+
+                # Método QR: dibujar cada QR nuevo
+                if qr and self.metodo == '2' and qr != ultimo_qr[0]:
+                    ultimo_qr[0] = qr
+                    print('\n📷 ESCANEA ESTE QR:\n')
+                    _print_qr(qr)
+
+                # Método código de 8 dígitos
+                if qr and self.metodo == '1' and not code_requested:
                     code_requested = True
                     try:
-                        code = await self.sock['requestPairingCode'](NUMERO_VINCULAR)
-                        print(f'\n🔢 CÓDIGO DE EMPAREJAMIENTO: {code}\n')
+                        code = await self.sock['requestPairingCode'](self.numero_vincular)
+                        print('\n' + '═' * 46)
+                        print(f'🔢 CÓDIGO DE EMPAREJAMIENTO: {code}')
+                        print(f'📞 En tu WhatsApp: Dispositivos vinculados →')
+                        print(f'   Vincular con número de teléfono → +{self.numero_vincular}')
+                        print('═' * 46 + '\n')
                     except Exception as err:
                         print(f'❌ Error pidiendo código: {err}')
                         code_requested = False
 
                 if update.get('connection') == 'open':
                     print('\n✅ ¡EMPAREJADO Y CONECTADO!')
+                    print(f'👑 Owner: +{OWNER_NUMBER}')
                     connected_event.set()
-                    
+
                 if update.get('connection') == 'close':
-                    print(f'\n⚠️ Conexión cerrada. Limpiando sesión corrupta...')
+                    print('\n⚠️ Conexión cerrada. Limpiando sesión corrupta...')
                     if os.path.exists(CREDS_FILE): os.remove(CREDS_FILE)
                     if os.path.exists(KEYS_FILE): os.remove(KEYS_FILE)
                     failed_event.set()
@@ -188,7 +259,7 @@ class BotMiniAura:
 
             done, pending = await asyncio.wait(
                 [asyncio.create_task(connected_event.wait()), asyncio.create_task(failed_event.wait())],
-                return_when=asyncio.FIRST_COMPLETED, timeout=120
+                return_when=asyncio.FIRST_COMPLETED, timeout=180
             )
             for task in pending: task.cancel()
 
@@ -197,9 +268,9 @@ class BotMiniAura:
                 print('\n🤖 BOT MINI AURA ACTIVO Y ESCUCHANDO MENSAJES\n')
                 break
             else:
-                print("🔄 Reintentando en 5 segundos...")
+                print('🔄 Reintentando en 5 segundos...')
                 try: await self.sock['end']()
-                except: pass
+                except Exception: pass
                 await asyncio.sleep(5)
 
         await asyncio.Event().wait()
@@ -209,25 +280,25 @@ class BotMiniAura:
             msgs = message.get('messages', [])
             if not msgs: return
             msg = msgs[0]
-            
-            # Evitar que el bot se responda a sí mismo (Bucle infinito)
             if msg.get('key', {}).get('fromMe'): return
 
-            texto = msg.get('message', {}).get('conversation', '').strip()
+            msg_id = msg.get('key', {}).get('id')
+            if not msg_id or msg_id in self.mensajes_procesados: return
+            if len(self.mensajes_procesados) > 1000: self.mensajes_procesados.clear()
+            self.mensajes_procesados.add(msg_id)
+
+            texto = (msg.get('message') or {}).get('conversation', '').strip()
             if not texto:
-                texto = msg.get('message', {}).get('extendedTextMessage', {}).get('text', '').strip()
+                texto = ((msg.get('message') or {}).get('extendedTextMessage') or {}).get('text', '').strip()
 
             remitente = msg.get('key', {}).get('remoteJid', 'desconocido')
             numero_remitente = remitente.split('@')[0] if '@' in remitente else remitente
             mencion = f"@{numero_remitente}"
 
             if not texto: return
-            if texto in self.mensajes_procesados: return
-            self.mensajes_procesados.add(texto)
 
             if texto.startswith(PREFIX):
                 comando = texto[len(PREFIX):].split(' ')[0].lower()
-                # CORRECCIÓN DEL ERROR DE SINTAXIS (' ' in texto)
                 args = texto.split(' ')[1:] if ' ' in texto else []
                 respuesta = await self.ejecutar_comando(comando, args, numero_remitente, mencion)
             else:
@@ -235,16 +306,18 @@ class BotMiniAura:
 
             if respuesta:
                 await self.sock['sendMessage'](remitente, {'text': respuesta})
-
         except Exception as e:
             logger.error(f"Error procesando mensaje: {e}")
 
     async def ejecutar_comando(self, comando, args, usuario, mencion):
-        if not COMANDOS_DISPONIBLES: return "⚠️ Los comandos están deshabilitados."
+        if not COMANDOS_DISPONIBLES:
+            return "⚠️ Comandos deshabilitados: falta la carpeta 'commands'."
         try:
-            if comando in ['menu', 'help', 'comandos']: return cmd_menu(mencion)
-            # ... pega aquí todo tu if/elif igual...
-            else: return f"❌ *{mencion}*\n\nComando no reconocido\nEscribe .menu"
+            if comando in ['menu', 'help', 'comandos']:
+                return cmd_menu(mencion)
+            # ... pega aquí todo tu if/elif de comandos igual que lo tenías ...
+            else:
+                return f"❌ *{mencion}*\n\nComando no reconocido\nEscribe .menu"
         except Exception as e:
             logger.error(f"Error en comando: {e}")
             return "⚠️ Error interno"
@@ -261,7 +334,7 @@ class BotMiniAura:
         }
         for clave, respuesta in respuestas.items():
             if clave in t: return respuesta
-        return None # Retorna None para no spamear "no entendi" a cada sticker o foto
+        return None
 
 if __name__ == '__main__':
     bot = BotMiniAura()
