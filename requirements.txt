@@ -1,3 +1,14 @@
-flask
-waeys
-websockets>=12.0
+# ══ BOT-MINI-AURA v4.0.0 · Compatible Python 3.10 – 3.13 ══
+
+# Núcleo WhatsApp (Baileys portado a Python)
+waeys==0.1.3
+websockets==17.2
+
+# QR ASCII en consola (para vinculación por QR)
+qrcode>=8.0
+
+# Dependencias del bot (versiones compatibles pineadas)
+flask==3.1.*
+aiofiles>=24.1.0
+aiohttp==3.12.*
+beautifulsoup4==4.13.*
