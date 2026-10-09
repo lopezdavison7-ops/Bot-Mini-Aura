@@ -1,2 +1,3 @@
-
 flask
+waeys
+websockets>=12.0
