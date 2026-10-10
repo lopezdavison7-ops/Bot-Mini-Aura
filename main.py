@@ -1,35 +1,37 @@
-import asyncio
-import json
-import base64
 import os
 import sys
+import time
 import random
 import logging
+import threading
 from datetime import datetime
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger('MINI-AURA')
 
-# ═══ La carpeta del script siempre en sys.path ═══
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
-# ═══ Import de WAeys tolerante a mayúsculas/minúsculas ═══
+SESSION_DIR = os.path.join(BASE_DIR, 'wa_session')
+DB_PATH = os.path.join(SESSION_DIR, 'mini-aura.db')
+
 try:
-    from WAeys.Defaults.index import default_connection_config
-    from WAeys.Utils.auth_utils import init_auth_creds
-    from WAeys.Utils.browser_utils import Browsers
-    from WAeys.Socket.socket import make_socket
-except ModuleNotFoundError:
+    from neonize.client import NewClient
+    from neonize.events import ConnectedEv, MessageEv, PairStatusEv
     try:
-        from waeys.Defaults.index import default_connection_config
-        from waeys.Utils.auth_utils import init_auth_creds
-        from waeys.Utils.browser_utils import Browsers
-        from waeys.Socket.socket import make_socket
-    except ModuleNotFoundError:
-        print('❌ WAeys no está instalado. Ejecuta: pip install -r requirements.txt')
-        sys.exit(1)
+        from neonize.utils.message import extract_text
+    except Exception:
+        def extract_text(m):
+            t = getattr(m, 'conversation', '') or ''
+            if not t:
+                etm = getattr(m, 'extendedTextMessage', None)
+                if etm is not None:
+                    t = getattr(etm, 'text', '') or ''
+            return t
+except ModuleNotFoundError:
+    print('❌ neonize no instalado. Ejecuta: pip install neonize qrcode')
+    sys.exit(1)
 
 # ═══ Comandos del bot (opcionales si falta la carpeta) ═══
 try:
@@ -90,68 +92,11 @@ except ImportError:
     logger.warning("⚠️ No se encontró la carpeta 'commands'. Comandos deshabilitados.")
 
 PREFIX = "."
-NUMERO_VINCULAR = "50576641902"   # valor por defecto si dejas vacío el input
+NUMERO_VINCULAR = "50576641902"
 OWNER_NUMBER = "50578391933"
-VERSION = "4.0.0"
-
-SESSION_DIR = os.path.join(BASE_DIR, 'wa_session')
-CREDS_FILE = os.path.join(SESSION_DIR, 'creds.json')
-KEYS_FILE = os.path.join(SESSION_DIR, 'keys.json')
-
-def _encode(v):
-    if isinstance(v, bytes): return {'__bytes__': base64.b64encode(v).decode('ascii')}
-    if isinstance(v, str): return {'__str__': v}
-    if isinstance(v, dict): return {k: _encode(x) for k, x in v.items()}
-    if isinstance(v, list): return [_encode(x) for x in v]
-    return v
-
-def _decode(v):
-    if isinstance(v, dict):
-        if '__bytes__' in v: return base64.b64decode(v['__bytes__'])
-        if '__str__' in v: return v['__str__']
-        return {k: _decode(x) for k, x in v.items()}
-    if isinstance(v, list): return [_decode(x) for x in v]
-    return v
-
-def save_creds(creds):
-    os.makedirs(SESSION_DIR, exist_ok=True)
-    with open(CREDS_FILE, 'w', encoding='utf-8') as f:
-        json.dump(_encode(creds), f, default=str, ensure_ascii=False, indent=2)
-
-def load_creds():
-    if not os.path.exists(CREDS_FILE): return None
-    with open(CREDS_FILE, 'r', encoding='utf-8') as f:
-        return _decode(json.load(f))
-
-def make_file_key_store():
-    async def get(type_, ids):
-        all_keys = {}
-        if os.path.exists(KEYS_FILE):
-            with open(KEYS_FILE, 'r', encoding='utf-8') as f:
-                all_keys = _decode(json.load(f))
-        return {i: all_keys.get(type_, {}).get(i) for i in ids if all_keys.get(type_, {}).get(i) is not None}
-
-    async def set(data):
-        existing = {}
-        if os.path.exists(KEYS_FILE):
-            with open(KEYS_FILE, 'r', encoding='utf-8') as f:
-                existing = _decode(json.load(f))
-        for type_, entries in data.items():
-            for id_, value in entries.items():
-                existing.setdefault(type_, {})
-                if value is None: existing[type_].pop(id_, None)
-                else: existing[type_][id_] = value
-        os.makedirs(SESSION_DIR, exist_ok=True)
-        with open(KEYS_FILE, 'w', encoding='utf-8') as f:
-            json.dump(_encode(existing), f, default=str, ensure_ascii=False, indent=2)
-
-    async def clear():
-        if os.path.exists(KEYS_FILE): os.remove(KEYS_FILE)
-
-    return {'get': get, 'set': set, 'clear': clear}
+VERSION = "5.0.0-neonize"
 
 def _print_qr(qr_string):
-    """Dibuja el QR en ASCII en la consola (o imprime el texto crudo)."""
     try:
         import qrcode
         qr = qrcode.QRCode(border=1)
@@ -163,153 +108,151 @@ def _print_qr(qr_string):
 
 class BotMiniAura:
     def __init__(self):
-        self.sock = None
-        self.mensajes_procesados = set()
-        self.auth = None
-        self.metodo = '1'              # '1' = código 8 dígitos, '2' = QR
-        self.numero_vincular = NUMERO_VINCULAR
+        self.client = None
+        self.metodo = '1'            # '1' = código 8 dígitos, '2' = QR
+        self.numero = NUMERO_VINCULAR
+        self.procesados = set()
+        self.conectado_este_ciclo = False
 
-    async def _menu_vinculacion(self):
+    # ─────────────── Menú de vinculación ───────────────
+    def menu(self):
         print('\n' + '═' * 46)
-        print(f'   🤖 BOT MINI AURA v{VERSION}')
-        print('   Métodos de vinculación:')
+        print(f'   🤖 BOT MINI AURA v{VERSION} · VINCULACIÓN')
         print('   [1] 🔢 Código de 8 dígitos')
         print('   [2] 📷 Código QR')
         print('═' * 46)
         try:
-            opt = (await asyncio.to_thread(input, '➡️  Elige opción (1/2): ')).strip() or '1'
+            opt = input('➡️  Elige opción (1/2): ').strip() or '1'
             self.metodo = '2' if opt == '2' else '1'
             if self.metodo == '1':
-                num = (await asyncio.to_thread(
-                    input, f'📞 Número a vincular (internacional sin +, Enter = {NUMERO_VINCULAR}): '
-                )).strip()
-                self.numero_vincular = num or NUMERO_VINCULAR
+                num = input(f'📞 Número (internacional sin +, Enter = {NUMERO_VINCULAR}): ').strip()
+                self.numero = num or NUMERO_VINCULAR
+                print('📱 Ten abierto: WhatsApp → Dispositivos vinculados → Vincular con número.')
             else:
-                print('📷 Cuando aparezca el QR: WhatsApp → Dispositivos vinculados → Vincular dispositivo.')
+                print('📷 El QR aparecerá abajo: WhatsApp → Dispositivos vinculados → Vincular dispositivo.')
         except (EOFError, OSError):
             print(f'⚠️ Sin entrada interactiva: código de 8 dígitos con {NUMERO_VINCULAR}.')
-            self.metodo, self.numero_vincular = '1', NUMERO_VINCULAR
+            self.metodo, self.numero = '1', NUMERO_VINCULAR
 
-    async def iniciar(self):
-        if load_creds() is None:
-            await self._menu_vinculacion()
-        else:
-            print('📦 Sesión guardada detectada: reconectando sin vincular de nuevo...')
-
-        while True:
-            print('\n🔄 Iniciando ciclo de conexión...')
-            creds = load_creds()
-            self.auth = {'creds': creds if creds else init_auth_creds(), 'keys': make_file_key_store()}
-
-            config = default_connection_config()
-            config['auth'] = self.auth
-            config['browser'] = Browsers.windows('Chrome')
-            config['keepAliveIntervalMs'] = 5000
-            config['markOnlineOnConnect'] = False
-            config['logger'].level = 'info'
-
-            self.sock = make_socket(config)
-            ev = self.sock['ev']
-            code_requested = False
-            ultimo_qr = ['']
-            connected_event = asyncio.Event()
-            failed_event = asyncio.Event()
-
-            async def on_creds(update):
-                self.auth['creds'].update(update)
-                save_creds(self.auth['creds'])
-
-            async def on_conn(update):
-                nonlocal code_requested
-                qr = update.get('qr')
-
-                # Método QR: dibujar cada QR nuevo
-                if qr and self.metodo == '2' and qr != ultimo_qr[0]:
-                    ultimo_qr[0] = qr
-                    print('\n📷 ESCANEA ESTE QR:\n')
-                    _print_qr(qr)
-
-                # Método código de 8 dígitos
-                if qr and self.metodo == '1' and not code_requested:
-                    code_requested = True
-                    try:
-                        code = await self.sock['requestPairingCode'](self.numero_vincular)
-                        print('\n' + '═' * 46)
-                        print(f'🔢 CÓDIGO DE EMPAREJAMIENTO: {code}')
-                        print(f'📞 En tu WhatsApp: Dispositivos vinculados →')
-                        print(f'   Vincular con número de teléfono → +{self.numero_vincular}')
-                        print('═' * 46 + '\n')
-                    except Exception as err:
-                        print(f'❌ Error pidiendo código: {err}')
-                        code_requested = False
-
-                if update.get('connection') == 'open':
-                    print('\n✅ ¡EMPAREJADO Y CONECTADO!')
-                    print(f'👑 Owner: +{OWNER_NUMBER}')
-                    connected_event.set()
-
-                if update.get('connection') == 'close':
-                    print('\n⚠️ Conexión cerrada. Limpiando sesión corrupta...')
-                    if os.path.exists(CREDS_FILE): os.remove(CREDS_FILE)
-                    if os.path.exists(KEYS_FILE): os.remove(KEYS_FILE)
-                    failed_event.set()
-
-            ev.on('creds.update', lambda u: asyncio.ensure_future(on_creds(u)))
-            ev.on('connection.update', lambda u: asyncio.ensure_future(on_conn(u)))
-
-            done, pending = await asyncio.wait(
-                [asyncio.create_task(connected_event.wait()), asyncio.create_task(failed_event.wait())],
-                return_when=asyncio.FIRST_COMPLETED, timeout=180
-            )
-            for task in pending: task.cancel()
-
-            if connected_event.is_set():
-                ev.on('messages.upsert', lambda m: asyncio.ensure_future(self.procesar_mensaje(m)))
-                print('\n🤖 BOT MINI AURA ACTIVO Y ESCUCHANDO MENSAJES\n')
-                break
-            else:
-                print('🔄 Reintentando en 5 segundos...')
-                try: await self.sock['end']()
-                except Exception: pass
-                await asyncio.sleep(5)
-
-        await asyncio.Event().wait()
-
-    async def procesar_mensaje(self, message):
+    # ─────────────── Cliente y eventos ───────────────
+    def make_client(self):
+        os.makedirs(SESSION_DIR, exist_ok=True)
         try:
-            msgs = message.get('messages', [])
-            if not msgs: return
-            msg = msgs[0]
-            if msg.get('key', {}).get('fromMe'): return
+            return NewClient('MINI AURA', database=DB_PATH)
+        except TypeError:
+            return NewClient(DB_PATH[:-3])  # versiones que usan el nombre como ruta de DB
 
-            msg_id = msg.get('key', {}).get('id')
-            if not msg_id or msg_id in self.mensajes_procesados: return
-            if len(self.mensajes_procesados) > 1000: self.mensajes_procesados.clear()
-            self.mensajes_procesados.add(msg_id)
+    def registrar_eventos(self, client):
+        @client.event(ConnectedEv)
+        def on_connected(cli, ev):
+            self.conectado_este_ciclo = True
+            print('\n✅ ¡CONECTADO Y CON SESIÓN ACTIVA!')
+            print(f'👑 Owner: +{OWNER_NUMBER}')
+            print('🤖 BOT MINI AURA ESCUCHANDO MENSAJES\n')
 
-            texto = (msg.get('message') or {}).get('conversation', '').strip()
+        @client.event(PairStatusEv)
+        def on_pair(cli, ev):
+            try:
+                user = ev.ID.User
+            except Exception:
+                user = '?'
+            print(f'👤 Sesión vinculada como: +{user}')
+
+        qr_dec = getattr(client, 'qr', None)
+        if qr_dec is not None:
+            @qr_dec
+            def on_qr(cli, qr):
+                if self.metodo != '2':
+                    return
+                if isinstance(qr, (bytes, bytearray)):
+                    data = qr.decode(errors='ignore')
+                elif isinstance(qr, str):
+                    data = qr
+                else:
+                    codes = getattr(qr, 'Codes', None) or getattr(qr, 'codes', None) or []
+                    data = codes[0] if len(codes) else str(qr)
+                print('\n📷 ESCANEA ESTE QR:\n')
+                _print_qr(data)
+
+        @client.event(MessageEv)
+        def on_message(cli, message):
+            self.procesar_mensaje(cli, message)
+
+    # ─────────────── Hilo que pide el código de 8 dígitos ───────────────
+    def lanzar_pedido_codigo(self):
+        def worker():
+            for _ in range(120):                      # espera conexión (60 s)
+                if self.client.is_connected:
+                    break
+                time.sleep(0.5)
+            if not self.client.is_connected:
+                print('❌ Sin conexión con WhatsApp en 60 s; reintentando ciclo...')
+                return
+            for _ in range(20):                       # gracia 10 s por si retoma sesión
+                if self.client.is_logged_in:
+                    return
+                time.sleep(0.5)
+            if self.client.is_logged_in:
+                return
+            if self.metodo == '2':
+                print('📷 Esperando el escaneo del QR...')
+                return
+            self._solicitar_codigo()
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _solicitar_codigo(self, reintento=0):
+        try:
+            pair_fn = getattr(self.client, 'PairPhone', None) or getattr(self.client, 'pair_code')
+            code = pair_fn(self.numero, True)
+            print('\n' + '═' * 46)
+            print(f'🔢 CÓDIGO DE EMPAREJAMIENTO: {code}')
+            print('📞 Mételo YA en WhatsApp (caduca en ~1-2 min):')
+            print('   Dispositivos vinculados → Vincular con número')
+            print(f'   → +{self.numero}')
+            print('═' * 46 + '\n')
+        except Exception as err:
+            msg = str(err).lower()
+            if ('overlimit' in msg or 'rate' in msg) and reintento < 1:
+                print('🚫 RATE-OVERLIMIT: el bot esperará 45 min y reintentará solo...')
+                time.sleep(45 * 60)
+                self._solicitar_codigo(reintento + 1)
+            else:
+                print(f'❌ Error pidiendo código: {err}')
+
+    # ─────────────── Mensajes ───────────────
+    def procesar_mensaje(self, cli, message):
+        try:
+            info = message.Info
+            src = info.MessageSource
+            if getattr(src, 'IsFromMe', False):
+                return
+            msg_id = getattr(info, 'ID', None)
+            if not msg_id or msg_id in self.procesados:
+                return
+            if len(self.procesados) > 1000:
+                self.procesados.clear()
+            self.procesados.add(msg_id)
+
+            texto = (extract_text(message.Message) or '').strip()
             if not texto:
-                texto = ((msg.get('message') or {}).get('extendedTextMessage') or {}).get('text', '').strip()
-
-            remitente = msg.get('key', {}).get('remoteJid', 'desconocido')
-            numero_remitente = remitente.split('@')[0] if '@' in remitente else remitente
-            mencion = f"@{numero_remitente}"
-
-            if not texto: return
+                return
+            chat = src.Chat
+            sender = src.Sender
+            numero = getattr(sender, 'User', '') or str(chat)
+            mencion = f'@{numero}'
 
             if texto.startswith(PREFIX):
                 comando = texto[len(PREFIX):].split(' ')[0].lower()
                 args = texto.split(' ')[1:] if ' ' in texto else []
-                respuesta = await self.ejecutar_comando(comando, args, numero_remitente, mencion)
+                respuesta = self.ejecutar_comando(comando, args, numero, mencion)
             else:
                 respuesta = self.procesar_normal(texto, mencion)
-
             if respuesta:
-                await self.sock['sendMessage'](remitente, {'text': respuesta})
+                cli.send_message(chat, respuesta)
         except Exception as e:
-            logger.error(f"Error procesando mensaje: {e}")
+            logger.error(f'Error procesando mensaje: {e}')
 
-    async def ejecutar_comando(self, comando, args, usuario, mencion):
+    def ejecutar_comando(self, comando, args, usuario, mencion):
         if not COMANDOS_DISPONIBLES:
             return "⚠️ Comandos deshabilitados: falta la carpeta 'commands'."
         try:
@@ -319,8 +262,8 @@ class BotMiniAura:
             else:
                 return f"❌ *{mencion}*\n\nComando no reconocido\nEscribe .menu"
         except Exception as e:
-            logger.error(f"Error en comando: {e}")
-            return "⚠️ Error interno"
+            logger.error(f'Error en comando: {e}')
+            return '⚠️ Error interno'
 
     def procesar_normal(self, texto, mencion):
         t = texto.lower()
@@ -333,14 +276,38 @@ class BotMiniAura:
             'owner': f'👑 Mi dueño es +{OWNER_NUMBER}',
         }
         for clave, respuesta in respuestas.items():
-            if clave in t: return respuesta
+            if clave in t:
+                return respuesta
         return None
 
+    # ─────────────── Ciclo de vida 24/7 ───────────────
+    def iniciar(self):
+        print('\n' + '═' * 46)
+        print(f'   🤖 BOT MINI AURA v{VERSION} (neonize/whatsmeow)')
+        print(f'   👑 Owner: +{OWNER_NUMBER}')
+        print('═' * 46)
+        while True:
+            if not os.path.exists(DB_PATH):
+                self.menu()
+            self.conectado_este_ciclo = False
+            self.client = self.make_client()
+            self.registrar_eventos(self.client)
+            self.lanzar_pedido_codigo()
+            try:
+                self.client.connect()   # bloquea hasta desconexión/logout
+            except KeyboardInterrupt:
+                print('\n👋 Bot detenido')
+                return
+            except Exception as e:
+                logger.error(f'Error de conexión: {e}')
+
+            if self.conectado_este_ciclo and not self.client.is_logged_in:
+                print('🔒 Sesión revocada por WhatsApp: limpiando base de sesión...')
+                if os.path.exists(DB_PATH):
+                    os.remove(DB_PATH)
+                continue
+            print('🔄 Reconectando en 5 s (la sesión se retoma sola)...')
+            time.sleep(5)
+
 if __name__ == '__main__':
-    bot = BotMiniAura()
-    try:
-        asyncio.run(bot.iniciar())
-    except KeyboardInterrupt:
-        print("\n👋 Bot detenido")
-    except Exception as e:
-        logger.error(f"Error fatal: {e}")
+    BotMiniAura().iniciar()
